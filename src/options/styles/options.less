@@ -1,0 +1,137 @@
+.options {
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    color: #0f172a;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.options__header h1 {
+    margin: 0;
+    font-size: 1.75rem;
+}
+
+.options__header p {
+    margin: 8px 0 0;
+    color: #475569;
+    font-size: 0.95rem;
+}
+
+.options__card {
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 20px 22px;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.options__card h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #0f172a;
+}
+
+.options__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.options__field label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.options__field input {
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+}
+
+.options__field input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.options__toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+}
+
+.options__muted {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.options__button {
+    align-self: flex-start;
+    background: #6366f1;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.options__button:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.options__button:hover:not(:disabled) {
+    background: #4f46e5;
+}
+
+.options__button--danger {
+    background: #ef4444;
+}
+
+.options__button--danger:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+.options__hint {
+    font-size: 0.82rem;
+    color: #475569;
+    background: #e0f2fe;
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.options__status {
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    border: 1px solid transparent;
+}
+
+.options__status--neutral {
+    background: #e2e8f0;
+    border-color: #cbd5f5;
+    color: #1e293b;
+}
+
+.options__status--positive {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #14532d;
+}
+
+.options__status--negative {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #7f1d1d;
+}
