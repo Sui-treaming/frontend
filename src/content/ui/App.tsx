@@ -98,7 +98,18 @@ export function App(): ReactElement | null {
     }, []);
 
     useEffect(() => {
-        document.documentElement.style.setProperty('--zklogin-overlay-opacity', overlayOpacity.toString());
+        const value = overlayOpacity.toString();
+        document.documentElement.style.setProperty('--zklogin-overlay-opacity', value);
+
+        const mount = document.getElementById('twitch-zklogin-wallet-root');
+        if (mount) {
+            mount.style.setProperty('--zklogin-overlay-opacity', value);
+        }
+
+        const overlay = overlayRef.current;
+        if (overlay) {
+            overlay.style.setProperty('--zklogin-overlay-opacity', value);
+        }
     }, [overlayOpacity]);
 
     useEffect(() => {
