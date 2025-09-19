@@ -349,48 +349,123 @@
 
 #zklogin-channel-points-widget {
     font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(15, 23, 42, 0.86);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 14px;
+    padding: 8px 12px;
     margin-top: 8px;
     color: #f8fafc;
+    position: relative;
+    overflow: hidden;
+    pointer-events: none;
+    max-width: 260px;
+}
+
+.zklogin-channel-widget__surface {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.zklogin-channel-widget__balance {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(79, 70, 229, 0.18);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #ede9fe;
+}
+
+.zklogin-channel-widget__balance-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #fde68a, #fbbf24 55%, #f59e0b);
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+    display: inline-block;
+}
+
+.zklogin-channel-widget__balance-value {
+    letter-spacing: 0.01em;
+}
+
+.zklogin-channel-widget__status {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    max-width: 280px;
+    gap: 2px;
+    font-size: 0.72rem;
 }
 
-.zklogin-channel-widget__header {
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: #cbd5f5;
-}
-
-.zklogin-channel-widget__body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.zklogin-channel-widget__row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-}
-
-.zklogin-channel-widget__label {
-    color: rgba(226, 232, 240, 0.7);
-}
-
-.zklogin-channel-widget__value {
+.zklogin-channel-widget__status-label {
     font-weight: 600;
     color: #f8fafc;
 }
 
-.zklogin-channel-widget__footer {
-    font-size: 0.7rem;
-    color: rgba(148, 163, 184, 0.75);
+.zklogin-channel-widget__status-sub {
+    color: rgba(226, 232, 240, 0.76);
+}
+
+.zklogin-channel-widget__status-wallet {
+    color: rgba(148, 163, 184, 0.8);
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+}
+
+.zklogin-channel-widget__wave {
+    position: absolute;
+    inset: auto -30% -140% -30%;
+    height: 200%;
+    background: radial-gradient(circle at 50% 20%, rgba(79, 70, 229, 0.45), rgba(79, 70, 229, 0) 65%),
+        radial-gradient(circle at 20% 60%, rgba(192, 132, 252, 0.35), rgba(192, 132, 252, 0) 55%),
+        radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.35), rgba(59, 130, 246, 0) 60%);
+    transform: translateY(40%);
+    opacity: 0;
+    transition: transform 0.8s ease, opacity 0.8s ease;
+    pointer-events: none;
+}
+
+.zklogin-channel-widget--minting .zklogin-channel-widget__wave {
+    opacity: 0.35;
+    transform: translateY(-10%);
+    animation: zkloginWavePulse 1.4s ease-out forwards;
+}
+
+.zklogin-channel-widget--minting .zklogin-channel-widget__surface {
+    animation: zkloginWidgetFlash 1.2s ease-out;
+}
+
+@keyframes zkloginWavePulse {
+    0% {
+        transform: translateY(40%);
+        opacity: 0;
+    }
+    30% {
+        opacity: 0.4;
+    }
+    70% {
+        opacity: 0.2;
+    }
+    100% {
+        transform: translateY(-45%);
+        opacity: 0;
+    }
+}
+
+@keyframes zkloginWidgetFlash {
+    0% {
+        filter: drop-shadow(0 0 0 rgba(129, 140, 248, 0));
+    }
+    40% {
+        filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.45));
+    }
+    100% {
+        filter: drop-shadow(0 0 0 rgba(129, 140, 248, 0));
+    }
 }
 
 .zklogin-global-widget {

@@ -6,6 +6,7 @@ export type WidgetState = {
     primaryAddress?: string;
     mintedCount: number;
     lastClaim?: string;
+    channelPoints?: number;
 };
 
 const WIDGET_ID = 'zklogin-channel-points-widget';
@@ -16,6 +17,15 @@ const CHANNEL_POINTS_SELECTORS = [
     '[data-a-target="community-points-summary"]',
     '.community-points-summary',
 ];
+
+const CHANNEL_POINTS_BALANCE_SELECTORS = [
+    '[data-test-selector="community-points-summary__balance"]',
+    '[data-a-target="community-points-summary__balance"]',
+    '[data-test-selector="balance-value"]',
+    '.community-points-summary__balance',
+];
+
+let mintAnimationTimer: number | null = null;
 
 let observedContainer: HTMLElement | null = null;
 let observer: MutationObserver | null = null;
@@ -36,6 +46,7 @@ function restoreState(): WidgetState {
             primaryAddress: parsed.primaryAddress,
             mintedCount: Number(parsed.mintedCount ?? 0),
             lastClaim: parsed.lastClaim,
+            channelPoints: typeof parsed.channelPoints === 'number' ? parsed.channelPoints : undefined,
         };
     } catch (error) {
         console.warn('[content] Failed to restore widget state', error);
@@ -57,6 +68,7 @@ function cloneState(): WidgetState {
         primaryAddress: state.primaryAddress,
         mintedCount: state.mintedCount,
         lastClaim: state.lastClaim,
+        channelPoints: state.channelPoints,
     };
 }
 
@@ -113,27 +125,37 @@ function ensureWidget(container: HTMLElement): HTMLElement {
 function renderWidget(container: HTMLElement): void {
     const element = ensureWidget(container);
 
+    const balance = readChannelPointsBalance(container);
+    if (balance !== null && state.channelPoints !== balance) {
+        state.channelPoints = balance;
+        persistState();
+    }
+
     const mintedLabel = state.mintedCount === 1 ? 'mint' : 'mints';
-    const lastClaim = state.lastClaim ? new Date(state.lastClaim).toLocaleTimeString() : '—';
-    const addressLabel = state.primaryAddress ? `${state.primaryAddress.slice(0, 6)}…${state.primaryAddress.slice(-4)}` : 'Not linked';
+    const walletLabel = state.hasAccount && state.primaryAddress
+        ? `${state.primaryAddress.slice(0, 4)}…${state.primaryAddress.slice(-4)}`
+        : 'Twitch connect needed';
+    const statusLabel = state.hasAccount
+        ? `${state.mintedCount} ${mintedLabel}`
+        : 'Connect to enable minting';
+    const lastClaim = state.lastClaim ? new Date(state.lastClaim).toLocaleTimeString() : 'Waiting for rewards';
+    const pointsLabel = typeof state.channelPoints === 'number'
+        ? state.channelPoints.toLocaleString()
+        : '—';
 
     element.innerHTML = `
-        <div class="zklogin-channel-widget__header">Stream-to-Sui</div>
-        <div class="zklogin-channel-widget__body">
-            <div class="zklogin-channel-widget__row">
-                <span class="zklogin-channel-widget__label">Wallet</span>
-                <strong class="zklogin-channel-widget__value">${state.hasAccount ? addressLabel : 'Connect Twitch'}</strong>
+        <div class="zklogin-channel-widget__surface">
+            <div class="zklogin-channel-widget__balance" aria-label="Channel points balance">
+                <span class="zklogin-channel-widget__balance-icon" aria-hidden="true"></span>
+                <span class="zklogin-channel-widget__balance-value">${pointsLabel}</span>
             </div>
-            <div class="zklogin-channel-widget__row">
-                <span class="zklogin-channel-widget__label">Mock NFT mints</span>
-                <strong class="zklogin-channel-widget__value">${state.mintedCount} ${mintedLabel}</strong>
-            </div>
-            <div class="zklogin-channel-widget__row">
-                <span class="zklogin-channel-widget__label">Last reward</span>
-                <strong class="zklogin-channel-widget__value">${lastClaim}</strong>
+            <div class="zklogin-channel-widget__status" aria-live="polite">
+                <span class="zklogin-channel-widget__status-label">${statusLabel}</span>
+                <span class="zklogin-channel-widget__status-sub">${lastClaim}</span>
+                <span class="zklogin-channel-widget__status-wallet">${walletLabel}</span>
             </div>
         </div>
-        <div class="zklogin-channel-widget__footer">Channel points → Sui rewards (prototype)</div>
+        <div class="zklogin-channel-widget__wave" aria-hidden="true"></div>
     `;
 }
 
@@ -162,6 +184,50 @@ function markMinted(): void {
         renderWidget(observedContainer);
     }
     emitState();
+    triggerMintAnimation();
+}
+
+function triggerMintAnimation(): void {
+    const widget = observedContainer?.querySelector(`#${WIDGET_ID}`);
+    if (!widget) {
+        return;
+    }
+    widget.classList.add('zklogin-channel-widget--minting');
+    if (mintAnimationTimer !== null) {
+        window.clearTimeout(mintAnimationTimer);
+    }
+    mintAnimationTimer = window.setTimeout(() => {
+        widget.classList.remove('zklogin-channel-widget--minting');
+        mintAnimationTimer = null;
+    }, 1600);
+}
+
+function readChannelPointsBalance(container: HTMLElement): number | null {
+    for (const selector of CHANNEL_POINTS_BALANCE_SELECTORS) {
+        const target = container.querySelector(selector);
+        if (target?.textContent) {
+            const digits = target.textContent.replace(/[^\d]/g, '');
+            if (digits) {
+                const parsed = Number.parseInt(digits, 10);
+                if (!Number.isNaN(parsed)) {
+                    return parsed;
+                }
+            }
+        }
+    }
+
+    const labelled = container.getAttribute('aria-label');
+    if (labelled) {
+        const digits = labelled.replace(/[^\d]/g, '');
+        if (digits) {
+            const parsed = Number.parseInt(digits, 10);
+            if (!Number.isNaN(parsed)) {
+                return parsed;
+            }
+        }
+    }
+
+    return null;
 }
 
 function attachClaimListener(container: HTMLElement): void {
