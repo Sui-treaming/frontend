@@ -1,4 +1,5 @@
 import { getWidgetState, subscribeToWidgetState, type WidgetState } from './channelPointsWidget';
+import { getGlobalWidgetPosition, setGlobalWidgetPosition, type OverlayPosition } from '../shared/storage';
 import { initWidgetScale } from './responsive';
 
 const GLOBAL_WIDGET_ID = 'zklogin-global-status-widget';
@@ -8,6 +9,13 @@ const BLOCKED_HOST_SUFFIXES = ['chromiumapp.org'];
 
 let initialized = false;
 let container: HTMLDivElement | null = null;
+let drag: {
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+} | null = null;
 let unsubscribe: (() => void) | null = null;
 
 function isBlockedEnvironment(): boolean {
@@ -46,6 +54,10 @@ function ensureContainer(): HTMLDivElement {
     element.innerHTML = '<div class="zklogin-global-widget__title">Stream-to-Sui (loading…)</div>';
     document.body.appendChild(element);
     container = element;
+    // 초기 위치 적용
+    applyPosition(element).catch(() => void 0);
+    // 드래그 핸들러 등록
+    bindDragHandlers(element);
     return element;
 }
 
@@ -109,4 +121,85 @@ export function initGlobalStatusWidget(): void {
         unsubscribe?.();
         unsubscribe = null;
     });
+}
+
+async function applyPosition(el: HTMLDivElement): Promise<void> {
+    const pos: OverlayPosition = await getGlobalWidgetPosition();
+    el.style.top = '';
+    el.style.right = '';
+    el.style.bottom = '';
+    el.style.left = '';
+    switch (pos.corner) {
+        case 'top-right':
+            el.style.top = pos.offsetY + 'px';
+            el.style.right = pos.offsetX + 'px';
+            break;
+        case 'top-left':
+            el.style.top = pos.offsetY + 'px';
+            el.style.left = pos.offsetX + 'px';
+            break;
+        case 'bottom-right':
+            el.style.bottom = pos.offsetY + 'px';
+            el.style.right = pos.offsetX + 'px';
+            break;
+        case 'bottom-left':
+            el.style.bottom = pos.offsetY + 'px';
+            el.style.left = pos.offsetX + 'px';
+            break;
+    }
+}
+
+function bindDragHandlers(el: HTMLDivElement): void {
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('a,button,input,select,textarea')) return;
+        const rect = el.getBoundingClientRect();
+        drag = {
+            pointerId: event.pointerId,
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+            width: rect.width,
+            height: rect.height,
+        };
+        el.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    });
+
+    el.addEventListener('pointermove', (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        const maxLeft = Math.max(8, window.innerWidth - drag.width - 8);
+        const maxTop = Math.max(8, window.innerHeight - drag.height - 8);
+        const newLeft = clamp(event.clientX - drag.offsetX, 8, maxLeft);
+        const newTop = clamp(event.clientY - drag.offsetY, 8, maxTop);
+        el.style.top = `${Math.round(newTop)}px`;
+        el.style.left = `${Math.round(newLeft)}px`;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+    });
+
+    function clear(id: number) {
+        if (el.hasPointerCapture(id)) el.releasePointerCapture(id);
+        drag = null;
+    }
+
+    el.addEventListener('pointerup', async (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        await persistPosition(el);
+        clear(event.pointerId);
+    });
+    el.addEventListener('pointercancel', (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        clear(event.pointerId);
+    });
+}
+
+async function persistPosition(el: HTMLDivElement): Promise<void> {
+    const rect = el.getBoundingClientRect();
+    const pos: OverlayPosition = { corner: 'top-left', offsetX: Math.round(rect.left), offsetY: Math.round(rect.top) };
+    await setGlobalWidgetPosition(pos);
+}
+
+function clamp(v: number, min: number, max: number): number {
+    return Math.min(Math.max(v, min), max);
 }

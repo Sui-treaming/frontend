@@ -2,6 +2,8 @@ import type { AccountPublicData, AccountSession, ExtensionConfig } from './types
 
 export const CONFIG_KEY = 'zklogin/config';
 export const OVERLAY_KEY = 'zklogin/overlay-enabled';
+export const OVERLAY_POSITION_KEY = 'zklogin/overlay-position';
+export const GLOBAL_WIDGET_POSITION_KEY = 'zklogin/global-widget-position';
 export const SESSION_KEY = 'zklogin/sessions';
 export const WIDGET_OPACITY_KEY = 'zklogin/widget-opacity';
 
@@ -64,6 +66,38 @@ export async function getOverlayEnabled(): Promise<boolean> {
 
 export async function setOverlayEnabled(enabled: boolean): Promise<void> {
     await chrome.storage.sync.set({ [OVERLAY_KEY]: enabled });
+}
+
+export type OverlayPosition = {
+    corner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+    offsetX: number; // px
+    offsetY: number; // px
+};
+
+const DEFAULT_POSITION: OverlayPosition = { corner: 'top-right', offsetX: 20, offsetY: 20 };
+
+export async function getOverlayPosition(): Promise<OverlayPosition> {
+    const stored = await chrome.storage.sync.get(OVERLAY_POSITION_KEY) as { [OVERLAY_POSITION_KEY]?: OverlayPosition };
+    const value = stored[OVERLAY_POSITION_KEY];
+    if (!value) return DEFAULT_POSITION;
+    return {
+        corner: value.corner ?? DEFAULT_POSITION.corner,
+        offsetX: Number.isFinite(value.offsetX as number) ? (value.offsetX as number) : DEFAULT_POSITION.offsetX,
+        offsetY: Number.isFinite(value.offsetY as number) ? (value.offsetY as number) : DEFAULT_POSITION.offsetY,
+    };
+}
+
+export async function setOverlayPosition(pos: OverlayPosition): Promise<void> {
+    await chrome.storage.sync.set({ [OVERLAY_POSITION_KEY]: pos });
+}
+
+export async function getGlobalWidgetPosition(): Promise<OverlayPosition> {
+    const stored = await chrome.storage.sync.get(GLOBAL_WIDGET_POSITION_KEY) as { [GLOBAL_WIDGET_POSITION_KEY]?: OverlayPosition };
+    return stored[GLOBAL_WIDGET_POSITION_KEY] ?? { corner: 'top-right', offsetX: 16, offsetY: 16 };
+}
+
+export async function setGlobalWidgetPosition(pos: OverlayPosition): Promise<void> {
+    await chrome.storage.sync.set({ [GLOBAL_WIDGET_POSITION_KEY]: pos });
 }
 
 export async function getWidgetOpacity(): Promise<number> {

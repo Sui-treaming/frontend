@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { DEFAULT_CONFIG, getOverlayEnabled, loadConfig, saveConfig, setOverlayEnabled, SESSION_KEY } from '../../shared/storage';
+import { DEFAULT_CONFIG, getOverlayEnabled, loadConfig, saveConfig, setOverlayEnabled, SESSION_KEY, getOverlayPosition, setOverlayPosition, type OverlayPosition } from '../../shared/storage';
 import type { ExtensionConfig } from '../../shared/types';
 
 interface StatusState {
@@ -14,22 +14,27 @@ export function OptionsApp(): ReactElement {
     const [overlayEnabled, setOverlaySwitch] = useState(true);
     const [status, setStatus] = useState<StatusState>(initialStatus);
     const [saving, setSaving] = useState(false);
+    const [position, setPosition] = useState<OverlayPosition>({ corner: 'top-right', offsetX: 20, offsetY: 20 });
 
     useEffect(() => {
         void bootstrap();
     }, []);
 
     async function bootstrap(): Promise<void> {
-        const [storedConfig, overlay] = await Promise.all([loadConfig(), getOverlayEnabled()]);
+        const [storedConfig, overlay, pos] = await Promise.all([loadConfig(), getOverlayEnabled(), getOverlayPosition()]);
         setConfig(storedConfig);
         setOverlaySwitch(overlay);
+        setPosition(pos);
     }
 
     async function handleSave(): Promise<void> {
         try {
             setStatus(initialStatus);
             setSaving(true);
-            await saveConfig(config);
+            await Promise.all([
+                saveConfig(config),
+                setOverlayPosition(position),
+            ]);
             setStatus({ message: 'Configuration saved successfully.', tone: 'positive' });
         } catch (error) {
             setStatus({ message: extractMessage(error), tone: 'negative' });
@@ -151,6 +156,42 @@ export function OptionsApp(): ReactElement {
                     <strong>Redirect URI:</strong> {redirectUriHint}<br />
                     Register this URI in the Twitch developer console for OpenID Connect.
                 </div>
+            </section>
+
+            <section className="options__card">
+                <h2>Overlay Position</h2>
+                <div className="options__field">
+                    <label htmlFor="corner">Corner</label>
+                    <select
+                        id="corner"
+                        value={position.corner}
+                        onChange={e => setPosition(prev => ({ ...prev, corner: e.target.value as OverlayPosition['corner'] }))}
+                    >
+                        <option value="top-right">Top Right</option>
+                        <option value="top-left">Top Left</option>
+                        <option value="bottom-right">Bottom Right</option>
+                        <option value="bottom-left">Bottom Left</option>
+                    </select>
+                </div>
+                <div className="options__field">
+                    <label htmlFor="offsetX">Offset X (px)</label>
+                    <input
+                        id="offsetX"
+                        type="number"
+                        value={position.offsetX}
+                        onChange={e => setPosition(prev => ({ ...prev, offsetX: Number(e.target.value) }))}
+                    />
+                </div>
+                <div className="options__field">
+                    <label htmlFor="offsetY">Offset Y (px)</label>
+                    <input
+                        id="offsetY"
+                        type="number"
+                        value={position.offsetY}
+                        onChange={e => setPosition(prev => ({ ...prev, offsetY: Number(e.target.value) }))}
+                    />
+                </div>
+                <p className="options__muted">변경 후 저장하면 Twitch 페이지의 오버레이 위치가 업데이트됩니다.</p>
             </section>
 
             <section className="options__card">

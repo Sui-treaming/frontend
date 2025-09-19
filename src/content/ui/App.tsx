@@ -45,6 +45,7 @@ export function App(): ReactElement | null {
     const [overlayOpacity, setOverlayOpacity] = useState(0.92);
     const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
     const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
+    const [copiedFor, setCopiedFor] = useState<string | null>(null);
 
     const overlayRef = useRef<HTMLDivElement | null>(null);
     const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -364,11 +365,13 @@ export function App(): ReactElement | null {
     }, [overlayOpacity, handleOpacityValueChange]);
 
     const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        if (!collapsed) {
+        const target = event.target as HTMLElement | null;
+        // 버튼이나 인터랙티브 요소에서 드래그 시작 금지
+        if (target?.closest('button,input,select,textarea,a')) {
             return;
         }
-        const target = event.target as HTMLElement | null;
-        if (target?.closest('button')) {
+        // 확장된 상태에서는 헤더에서만 드래그 시작 허용
+        if (!collapsed && !target?.closest('.zklogin-overlay__header')) {
             return;
         }
         const overlay = overlayRef.current;
@@ -383,13 +386,14 @@ export function App(): ReactElement | null {
             width: rect.width,
             height: rect.height,
         };
+        overlay.classList.add('zklogin-overlay--dragging');
         overlay.setPointerCapture(event.pointerId);
         event.preventDefault();
     }, [collapsed]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const data = dragDataRef.current;
-        if (!collapsed || !data || data.pointerId !== event.pointerId) {
+        if (!data || data.pointerId !== event.pointerId) {
             return;
         }
         const maxLeft = Math.max(16, window.innerWidth - data.width - 16);
@@ -398,12 +402,15 @@ export function App(): ReactElement | null {
         const newTop = clamp(event.clientY - data.offsetY, 16, maxTop);
         setFloatingPosition({ top: newTop, left: newLeft });
         event.preventDefault();
-    }, [clamp, collapsed]);
+    }, [clamp]);
 
     const clearDragState = useCallback((pointerId: number) => {
         const overlay = overlayRef.current;
         if (overlay && overlay.hasPointerCapture(pointerId)) {
             overlay.releasePointerCapture(pointerId);
+        }
+        if (overlay) {
+            overlay.classList.remove('zklogin-overlay--dragging');
         }
         dragDataRef.current = null;
     }, []);
@@ -535,7 +542,18 @@ export function App(): ReactElement | null {
                             <div className="zklogin-card__identity">
                                 <span className="zklogin-badge">Twitch</span>
                                 <div className="zklogin-card__address">
-                                    <span>{shortenAddress(account.address)}</span>
+                                    <div className="zklogin-card__address-row">
+                                        <span>{shortenAddress(account.address)}</span>
+                                        <button
+                                            className="zklogin-icon-button zklogin-copy-button"
+                                            title="Copy address"
+                                            onClick={() => { void copyToClipboard(account.address); }}
+                                            type="button"
+                                        >📋</button>
+                                        {copiedFor === account.address && (
+                                            <span className="zklogin-copy-hint">복사되었습니다</span>
+                                        )}
+                                    </div>
                                     <a
                                         href={makePolymediaUrl(NETWORK, 'address', account.address)}
                                         target="_blank"
@@ -593,6 +611,28 @@ export function App(): ReactElement | null {
             )}
         </div>
     );
+
+    async function copyToClipboard(text: string): Promise<void> {
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            setCopiedFor(text);
+            window.setTimeout(() => setCopiedFor(null), 1200);
+        } catch (err) {
+            console.warn('[overlay] Failed to copy to clipboard', err);
+        }
+    }
 
     function renderOverviewFooter(overviewState?: OverviewState): ReactElement | null {
         if (!overviewState) {

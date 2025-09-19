@@ -12,8 +12,7 @@
     all: initial;
     font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
     position: fixed;
-    top: 20px;
-    right: 20px;
+    /* 위치는 JS에서 설정(getOverlayPosition) */
     z-index: 2147483647;
     color: #f8fafc;
     pointer-events: none;
@@ -58,6 +57,7 @@
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 10px;
+    cursor: grab;
 }
 
 .zklogin-overlay__title {
@@ -211,6 +211,42 @@
             text-decoration: underline;
         }
     }
+}
+
+.zklogin-card__address-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px; /* 주소와 복사 버튼 사이 간격 확대 */
+}
+
+.zklogin-copy-button {
+    /* 기본 아이콘 버튼 스타일을 덮어써서 더 작게 보이도록 조정 */
+    padding: 0 4px !important;
+    font-size: 0.68em;
+    line-height: 1;
+    height: 20px;
+    min-height: 20px;
+    border-radius: 4px;
+    background: transparent !important;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.zklogin-copy-button:hover {
+    background: rgba(148, 163, 184, 0.18);
+}
+
+.zklogin-copy-hint {
+    font-size: 0.72em;
+    color: #a5b4fc;
+    opacity: 0;
+    animation: zkloginFadeHint 1.2s ease forwards;
+}
+
+@keyframes zkloginFadeHint {
+    0% { opacity: 0; transform: translateY(-2px); }
+    15% { opacity: 1; transform: translateY(0); }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 .zklogin-card__meta {
@@ -522,6 +558,7 @@
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(12px);
     pointer-events: auto;
+    cursor: grab;
 }
 
 .zklogin-global-widget__title {
