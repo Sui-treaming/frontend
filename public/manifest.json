@@ -28,8 +28,8 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.twitch.tv/*"],
-      "js": ["assets/content.js"],
+      "matches": ["<all_urls>"],
+      "js": ["assets/content-loader.js"],
       "css": ["assets/content.css"],
       "run_at": "document_idle"
     }
@@ -37,7 +37,7 @@
   "web_accessible_resources": [
     {
       "resources": ["assets/*.css", "assets/*.js"],
-      "matches": ["https://www.twitch.tv/*"]
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {

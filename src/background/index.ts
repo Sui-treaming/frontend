@@ -8,7 +8,7 @@ import type { JwtPayload } from 'jwt-decode';
 import { jwtDecode } from 'jwt-decode';
 
 import type { MessageRequest, MessageResponse, SerializedTransactionRequest } from '../shared/messages';
-import type { AccountPublicData, AccountSession, StoredZkLoginProof } from '../shared/types';
+import type { AccountPublicData, AccountSession, ExtensionConfig, StoredZkLoginProof } from '../shared/types';
 import { DEVNET_FULLNODE } from '../shared/types';
 import { base64ToUint8, uint8ToBase64 } from '../shared/encoding';
 import { getAccountSessions, getOverlayEnabled, loadConfig, saveConfig, sessionsToPublicData, setAccountSessions, setOverlayEnabled } from '../shared/storage';
@@ -173,6 +173,8 @@ async function startTwitchLogin(): Promise<MessageResponse> {
         const filteredSessions = sessions.filter(existing => existing.address !== session.address);
         const updatedSessions = [session, ...filteredSessions];
         await setAccountSessions(updatedSessions);
+
+        void registerAccountWithBackend(config, session);
 
         const account = sessionToPublicData(session);
         return {
@@ -458,6 +460,36 @@ async function fetchZkProof(url: string, payload: Record<string, unknown>): Prom
     }
 
     return data as StoredZkLoginProof;
+}
+
+async function registerAccountWithBackend(config: ExtensionConfig, session: AccountSession): Promise<void> {
+    const endpoint = config.backendRegistrationUrl?.trim();
+    if (!endpoint) {
+        return;
+    }
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                walletAddress: session.address,
+                provider: session.provider,
+                twitchUserId: session.sub,
+                audience: session.aud,
+                registeredAt: new Date(session.createdAt).toISOString(),
+            }),
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+
+        console.info('[background] Registered wallet with backend');
+    } catch (error) {
+        console.warn('[background] Failed to register wallet with backend', error);
+    }
 }
 
 function formatError(error: unknown): string {

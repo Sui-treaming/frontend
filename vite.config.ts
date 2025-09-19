@@ -16,6 +16,7 @@ export default defineConfig({
             input: {
                 background: resolve(rootDir, 'src/background/index.ts'),
                 content: resolve(rootDir, 'src/content/index.tsx'),
+                'content-loader': resolve(rootDir, 'src/content/loader.ts'),
                 options: resolve(rootDir, 'options.html'),
                 popup: resolve(rootDir, 'popup.html'),
             },

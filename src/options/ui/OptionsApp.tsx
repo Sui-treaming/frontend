@@ -117,6 +117,20 @@ export function OptionsApp(): ReactElement {
                     />
                     <span className="options__muted">Default: https://prover-dev.mystenlabs.com/v1 (Devnet only).</span>
                 </div>
+                <div className="options__field">
+                    <label htmlFor="backendRegistrationUrl">Backend Registration URL</label>
+                    <input
+                        id="backendRegistrationUrl"
+                        type="text"
+                        placeholder="https://api.example.com/onboard"
+                        value={config.backendRegistrationUrl}
+                        onChange={event => {
+                            setStatus(initialStatus);
+                            setConfig(prev => ({ ...prev, backendRegistrationUrl: event.target.value }));
+                        }}
+                    />
+                    <span className="options__muted">로그인 후 지갑-사용자 매핑을 전송할 API endpoint.</span>
+                </div>
                 <button className="options__button" onClick={() => { void handleSave(); }} disabled={saving}>
                     {saving ? 'Saving…' : 'Save configuration'}
                 </button>

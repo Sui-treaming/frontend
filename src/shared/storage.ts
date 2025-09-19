@@ -8,6 +8,7 @@ const BASE_DEFAULT_CONFIG: ExtensionConfig = {
     twitchClientId: '',
     saltServiceUrl: '/dummy-salt-service.json',
     zkProverUrl: 'https://prover-dev.mystenlabs.com/v1',
+    backendRegistrationUrl: '',
 };
 
 let cachedDefaults: ExtensionConfig | null = null;
