@@ -384,9 +384,20 @@
     color: #f8fafc;
     position: relative;
     overflow: hidden;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
     max-width: 260px;
     font-size: calc(1rem * var(--zklogin-widget-scale, 1));
+}
+
+#zklogin-channel-points-widget.zklogin-channel-widget--dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+#zklogin-channel-points-widget.zklogin-channel-widget--dragging * {
+    user-select: none;
 }
 
 .zklogin-channel-widget__surface {
