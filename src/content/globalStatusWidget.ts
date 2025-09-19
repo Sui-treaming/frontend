@@ -1,4 +1,5 @@
 import { getWidgetState, subscribeToWidgetState, type WidgetState } from './channelPointsWidget';
+import { initWidgetScale } from './responsive';
 
 const GLOBAL_WIDGET_ID = 'zklogin-global-status-widget';
 const BLOCKED_PROTOCOLS = new Set(['about:', 'chrome:', 'chrome-extension:']);
@@ -97,6 +98,8 @@ export function initGlobalStatusWidget(): void {
         return;
     }
     initialized = true;
+
+    initWidgetScale();
 
     render(getWidgetState());
 

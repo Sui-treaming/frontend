@@ -1,4 +1,5 @@
 import { sendMessage } from './api/runtime';
+import { initWidgetScale } from './responsive';
 import type { ExtensionState } from '../shared/types';
 
 export type WidgetState = {
@@ -361,6 +362,8 @@ export function initChannelPointsWidget(): void {
     if (typeof window === 'undefined') {
         return;
     }
+
+    initWidgetScale();
 
     const isTwitch = /(^|\.)twitch\.tv$/i.test(window.location.hostname);
 

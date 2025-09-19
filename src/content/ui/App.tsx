@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../api/runtime';
-import { OVERLAY_KEY } from '../../shared/storage';
+import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/storage';
 import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
+import { initWidgetScale } from '../responsive';
 
 const NETWORK: NetworkName = 'devnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
@@ -41,9 +42,44 @@ export function App(): ReactElement | null {
     const [overviews, setOverviews] = useState<AccountsMap>({});
     const [activeTabByAccount, setActiveTabByAccount] = useState<Record<string, TabKey>>({});
     const [transferForms, setTransferForms] = useState<Record<string, TransferFormState>>({});
+    const [overlayOpacity, setOverlayOpacity] = useState(0.92);
+    const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
+    const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
+
+    const overlayRef = useRef<HTMLDivElement | null>(null);
+    const popoverRef = useRef<HTMLDivElement | null>(null);
+    const dragDataRef = useRef<{
+        pointerId: number;
+        offsetX: number;
+        offsetY: number;
+        width: number;
+        height: number;
+    } | null>(null);
+
+    const clamp = useCallback((value: number, min: number, max: number) => {
+        return Math.min(Math.max(value, min), max);
+    }, []);
+
+    useEffect(() => {
+        initWidgetScale();
+    }, []);
 
     useEffect(() => {
         void bootstrap();
+        void getWidgetOpacity()
+            .then(value => {
+                setOverlayOpacity(value);
+            })
+            .catch(error => {
+                console.warn('[overlay] Failed to load widget opacity', error);
+            });
+
+        const root = document.getElementById('twitch-zklogin-wallet-root');
+        if (root) {
+            root.style.top = '20px';
+            root.style.right = '20px';
+            root.style.left = 'auto';
+        }
 
         const handleStorageChange = (
             changes: Record<string, chrome.storage.StorageChange>,
@@ -60,6 +96,91 @@ export function App(): ReactElement | null {
             chrome.storage.onChanged.removeListener(handleStorageChange);
         };
     }, []);
+
+    useEffect(() => {
+        document.documentElement.style.setProperty('--zklogin-overlay-opacity', overlayOpacity.toString());
+    }, [overlayOpacity]);
+
+    useEffect(() => {
+        if (!collapsed) {
+            setFloatingPosition(null);
+            return;
+        }
+
+        const overlay = overlayRef.current;
+        const updateInitialPosition = () => {
+            const rect = overlay?.getBoundingClientRect();
+            if (!rect) {
+                return;
+            }
+            setFloatingPosition(prev => {
+                if (prev) {
+                    return {
+                        top: clamp(prev.top, 16, Math.max(16, window.innerHeight - rect.height - 16)),
+                        left: clamp(prev.left, 16, Math.max(16, window.innerWidth - rect.width - 16)),
+                    };
+                }
+                const initialLeft = clamp(window.innerWidth - rect.width - 20, 16, Math.max(16, window.innerWidth - rect.width - 16));
+                return { top: 16, left: initialLeft };
+            });
+        };
+
+        const id = requestAnimationFrame(updateInitialPosition);
+
+        const handleResize = () => {
+            updateInitialPosition();
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+
+        return () => {
+            cancelAnimationFrame(id);
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
+        };
+    }, [collapsed, clamp]);
+
+    useEffect(() => {
+        if (!collapsed) {
+            setOpacityPopoverOpen(false);
+        }
+    }, [collapsed]);
+
+    useEffect(() => {
+        if (!opacityPopoverOpen) {
+            return;
+        }
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest('[data-opacity-toggle]')) {
+                return;
+            }
+            if (popoverRef.current && !popoverRef.current.contains(target)) {
+                setOpacityPopoverOpen(false);
+            }
+        };
+        document.addEventListener('pointerdown', handlePointerDown, true);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown, true);
+        };
+    }, [opacityPopoverOpen]);
+
+    useEffect(() => {
+        const root = document.getElementById('twitch-zklogin-wallet-root');
+        if (!root) {
+            return;
+        }
+        if (floatingPosition) {
+            root.style.top = `${Math.round(floatingPosition.top)}px`;
+            root.style.left = `${Math.round(floatingPosition.left)}px`;
+            root.style.right = 'auto';
+        } else {
+            root.style.top = '20px';
+            root.style.right = '20px';
+            root.style.left = 'auto';
+        }
+    }, [floatingPosition]);
 
     useEffect(() => {
         accounts.forEach(account => {
@@ -214,6 +335,80 @@ export function App(): ReactElement | null {
         [accounts],
     );
 
+    const handleOpacityValueChange = useCallback((value: number) => {
+        const normalized = Math.min(1, Math.max(0.4, value));
+        setOverlayOpacity(normalized);
+        void setWidgetOpacity(normalized);
+    }, []);
+
+    const handleOpacitySliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        const percent = Number(event.target.value);
+        if (Number.isFinite(percent)) {
+            handleOpacityValueChange(percent / 100);
+        }
+    }, [handleOpacityValueChange]);
+
+    const handleOpacityStep = useCallback((step: number) => {
+        handleOpacityValueChange(Math.round((overlayOpacity + step) * 100) / 100);
+    }, [overlayOpacity, handleOpacityValueChange]);
+
+    const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (!collapsed) {
+            return;
+        }
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('button')) {
+            return;
+        }
+        const overlay = overlayRef.current;
+        if (!overlay) {
+            return;
+        }
+        const rect = overlay.getBoundingClientRect();
+        dragDataRef.current = {
+            pointerId: event.pointerId,
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+            width: rect.width,
+            height: rect.height,
+        };
+        overlay.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    }, [collapsed]);
+
+    const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        const data = dragDataRef.current;
+        if (!collapsed || !data || data.pointerId !== event.pointerId) {
+            return;
+        }
+        const maxLeft = Math.max(16, window.innerWidth - data.width - 16);
+        const maxTop = Math.max(16, window.innerHeight - data.height - 16);
+        const newLeft = clamp(event.clientX - data.offsetX, 16, maxLeft);
+        const newTop = clamp(event.clientY - data.offsetY, 16, maxTop);
+        setFloatingPosition({ top: newTop, left: newLeft });
+        event.preventDefault();
+    }, [clamp, collapsed]);
+
+    const clearDragState = useCallback((pointerId: number) => {
+        const overlay = overlayRef.current;
+        if (overlay && overlay.hasPointerCapture(pointerId)) {
+            overlay.releasePointerCapture(pointerId);
+        }
+        dragDataRef.current = null;
+    }, []);
+
+    const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (dragDataRef.current?.pointerId === event.pointerId) {
+            clearDragState(event.pointerId);
+        }
+    }, [clearDragState]);
+
+    const handlePointerCancel = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (dragDataRef.current?.pointerId === event.pointerId) {
+            clearDragState(event.pointerId);
+        }
+    }, [clearDragState]);
+
     if (!overlayEnabled) {
         return (
             <div className="zklogin-overlay-disabled">
@@ -228,13 +423,59 @@ export function App(): ReactElement | null {
     }
 
     return (
-        <div className={`zklogin-overlay ${collapsed ? 'zklogin-overlay--collapsed' : ''}`}>
+        <div
+            ref={overlayRef}
+            className={`zklogin-overlay ${collapsed ? 'zklogin-overlay--collapsed' : ''}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            data-collapsed={collapsed ? 'true' : 'false'}
+        >
             <header className="zklogin-overlay__header">
                 <div>
                     <span className="zklogin-overlay__title">Twitch zkLogin Wallet</span>
                     <span className="zklogin-overlay__subtitle">Sui Devnet</span>
                 </div>
                 <div className="zklogin-overlay__header-actions">
+                    <div className="zklogin-overlay__opacity">
+                        <button
+                            className="zklogin-icon-button"
+                            data-opacity-toggle="true"
+                            onClick={() => { setOpacityPopoverOpen(prev => !prev); }}
+                            title="Adjust widget transparency"
+                        >💧</button>
+                        {opacityPopoverOpen && (
+                            <div ref={popoverRef} className="zklogin-overlay__opacity-popover">
+                                <div className="zklogin-overlay__opacity-row">
+                                    <span>Opacity</span>
+                                    <div className="zklogin-overlay__opacity-controls">
+                                        <button
+                                            className="zklogin-overlay__opacity-step"
+                                            type="button"
+                                            onClick={() => { handleOpacityStep(-0.02); }}
+                                            title="Decrease opacity"
+                                        >−</button>
+                                        <button
+                                            className="zklogin-overlay__opacity-step"
+                                            type="button"
+                                            onClick={() => { handleOpacityStep(0.02); }}
+                                            title="Increase opacity"
+                                        >+</button>
+                                    </div>
+                                </div>
+                                <input
+                                    className="zklogin-overlay__opacity-range"
+                                    type="range"
+                                    min={40}
+                                    max={100}
+                                    value={Math.round(overlayOpacity * 100)}
+                                    onChange={handleOpacitySliderChange}
+                                />
+                                <div className="zklogin-overlay__opacity-value">{Math.round(overlayOpacity * 100)}%</div>
+                            </div>
+                        )}
+                    </div>
                     <button
                         className="zklogin-icon-button"
                         onClick={() => { chrome.runtime.openOptionsPage(); }}
@@ -243,8 +484,8 @@ export function App(): ReactElement | null {
                     <button
                         className="zklogin-icon-button"
                         onClick={() => { setCollapsed(prev => !prev); }}
-                        title={collapsed ? 'Expand' : 'Collapse'}
-                    >{collapsed ? '▢' : '–'}</button>
+                        title={collapsed ? 'Expand widget' : 'Collapse widget'}
+                    >{collapsed ? '🌅' : '🌊'}</button>
                 </div>
             </header>
 

@@ -3,6 +3,11 @@ import type { AccountPublicData, AccountSession, ExtensionConfig } from './types
 export const CONFIG_KEY = 'zklogin/config';
 export const OVERLAY_KEY = 'zklogin/overlay-enabled';
 export const SESSION_KEY = 'zklogin/sessions';
+export const WIDGET_OPACITY_KEY = 'zklogin/widget-opacity';
+
+const DEFAULT_WIDGET_OPACITY = 0.92;
+const MIN_WIDGET_OPACITY = 0.4;
+const MAX_WIDGET_OPACITY = 1;
 
 const BASE_DEFAULT_CONFIG: ExtensionConfig = {
     twitchClientId: '',
@@ -50,6 +55,20 @@ export async function getOverlayEnabled(): Promise<boolean> {
 
 export async function setOverlayEnabled(enabled: boolean): Promise<void> {
     await chrome.storage.sync.set({ [OVERLAY_KEY]: enabled });
+}
+
+export async function getWidgetOpacity(): Promise<number> {
+    const stored = await chrome.storage.sync.get(WIDGET_OPACITY_KEY) as { [WIDGET_OPACITY_KEY]?: number };
+    const value = stored[WIDGET_OPACITY_KEY];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.min(MAX_WIDGET_OPACITY, Math.max(MIN_WIDGET_OPACITY, value));
+    }
+    return DEFAULT_WIDGET_OPACITY;
+}
+
+export async function setWidgetOpacity(opacity: number): Promise<void> {
+    const clamped = Math.min(MAX_WIDGET_OPACITY, Math.max(MIN_WIDGET_OPACITY, opacity));
+    await chrome.storage.sync.set({ [WIDGET_OPACITY_KEY]: clamped });
 }
 
 export async function getAccountSessions(): Promise<AccountSession[]> {
