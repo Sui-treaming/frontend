@@ -115,6 +115,8 @@ pnpm dev
 - `SIGN_AND_EXECUTE` 요청 시 `@mysten/sui/transactions`로 Programmable Transaction 생성 후 zkLogin 서명, Testnet에 제출
 - 로그인 성공 시 `backendRegistrationUrl`로 `{ walletAddress, twitchUserId, audience, registeredAt }`을 전송 (없는 경우 생략)
 
+- NFT 업로드 요청 시 `nftUploadUrl`(기본: `https://zklogin.wiimdy.kr/api/walus/upload`)로 `FormData` (`walletAddress`, `provider`, `twitchUserId`, `audience`, `file`)를 POST
+
 ### Content Script (`src/content`)
 
 - `content-loader.ts`: MV3 제약을 피해 `assets/content.js`를 동적 import

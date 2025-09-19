@@ -8,7 +8,14 @@ export type MessageRequest =
     | { type: 'FETCH_ACCOUNT_OVERVIEW'; address: string }
     | { type: 'SAVE_CONFIG'; config: ExtensionConfig }
     | { type: 'GET_CONFIG' }
-    | { type: 'SET_OVERLAY_ENABLED'; enabled: boolean };
+    | { type: 'SET_OVERLAY_ENABLED'; enabled: boolean }
+    | {
+        type: 'UPLOAD_NFT_IMAGE';
+        address: string;
+        fileName: string;
+        fileType: string;
+        fileData: ArrayBuffer;
+    };
 
 type SuccessResponse<T extends MessageRequest['type'], D> = {
     type: T;
@@ -39,7 +46,9 @@ export type MessageResponse =
     | SuccessResponse<'GET_CONFIG', { config: ExtensionConfig }>
     | ErrorResponse<'GET_CONFIG'>
     | SuccessResponse<'SET_OVERLAY_ENABLED', { enabled: boolean }>
-    | ErrorResponse<'SET_OVERLAY_ENABLED'>;
+    | ErrorResponse<'SET_OVERLAY_ENABLED'>
+    | SuccessResponse<'UPLOAD_NFT_IMAGE', { status: 'ok'; message?: string; result?: unknown }>
+    | ErrorResponse<'UPLOAD_NFT_IMAGE'>;
 
 export interface AccountOverviewPayload {
     address: string;

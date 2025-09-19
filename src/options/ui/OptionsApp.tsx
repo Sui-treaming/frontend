@@ -149,6 +149,20 @@ export function OptionsApp(): ReactElement {
                     />
                     <span className="options__muted">로그인 후 지갑-사용자 매핑을 전송할 API endpoint.</span>
                 </div>
+                <div className="options__field">
+                    <label htmlFor="nftUploadUrl">NFT Upload API URL</label>
+                    <input
+                        id="nftUploadUrl"
+                        type="text"
+                        placeholder="https://api.example.com/nfts/upload"
+                        value={config.nftUploadUrl}
+                        onChange={event => {
+                            setStatus(initialStatus);
+                            setConfig(prev => ({ ...prev, nftUploadUrl: event.target.value }));
+                        }}
+                    />
+                    <span className="options__muted">스트리머가 업로드한 NFT 이미지를 수신할 POST endpoint.</span>
+                </div>
                 <button className="options__button" onClick={() => { void handleSave(); }} disabled={saving}>
                     {saving ? 'Saving…' : 'Save configuration'}
                 </button>

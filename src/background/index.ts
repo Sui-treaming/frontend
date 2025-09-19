@@ -73,6 +73,8 @@ async function handleMessage(message: MessageRequest): Promise<MessageResponse> 
             ok: true,
             data: { enabled: message.enabled },
         };
+    case 'UPLOAD_NFT_IMAGE':
+        return uploadNftImage(message);
     default: {
         const exhaustiveCheck: never = message;
         throw new Error(`Unhandled message type: ${JSON.stringify(exhaustiveCheck)}`);
@@ -97,6 +99,139 @@ async function getExtensionState(): Promise<MessageResponse> {
         },
     };
 }
+
+async function uploadNftImage(message: Extract<MessageRequest, { type: 'UPLOAD_NFT_IMAGE' }>): Promise<MessageResponse> {
+    try {
+        const [config, session] = await Promise.all([
+            loadConfig(),
+            getSessionOrThrow(message.address),
+        ]);
+
+        const endpoint = config.nftUploadUrl?.trim();
+        if (!endpoint) {
+            throw new Error('NFT upload endpoint is not configured. Set it in the extension options.');
+        }
+
+        console.info('[background] Uploading NFT image', {
+            endpoint,
+            address: session.address,
+            fileName: message.fileName,
+            fileType: message.fileType,
+            fileSize: message.fileData.byteLength,
+        });
+
+        // JSON base64 payload (먼저 시도)
+        const fileName = message.fileName || 'upload.png';
+        const contentType = message.fileType || 'application/octet-stream';
+        const base64 = uint8ToBase64(new Uint8Array(message.fileData));
+        const dataUrl = `data:${contentType};base64,${base64}`;
+
+        let response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: fileName, contentType, data: dataUrl }),
+        });
+
+        // Fallback: some endpoints require raw image/png instead of JSON
+        if (response.status === 415) {
+            console.warn('[background] JSON upload not supported, retrying as image/png');
+            const blob = await ensurePngBlob(message.fileData, contentType);
+            response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'image/png' },
+                body: blob,
+            });
+        }
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Upload failed (HTTP ${response.status}): ${text}`);
+        }
+
+        const respType = response.headers.get('content-type') ?? '';
+        const responseClone = response.clone();
+        let result: unknown;
+        let messageText: string | undefined;
+
+        if (respType.includes('application/json')) {
+            try {
+                result = await responseClone.json();
+                if (result && typeof result === 'object') {
+                    const record = result as Record<string, unknown>;
+                    const maybeMessage = record.message;
+                    const maybeUrl = record.url;
+                    if (typeof maybeMessage === 'string') {
+                        messageText = maybeMessage;
+                    } else if (typeof maybeUrl === 'string') {
+                        messageText = maybeUrl;
+                    }
+                }
+            } catch (error) {
+                console.warn('[background] Failed to parse upload response JSON', error);
+            }
+        }
+
+        if (result === undefined) {
+            const text = await response.text();
+            result = text;
+            messageText = messageText ?? (text ? text : undefined);
+        }
+
+        console.info('[background] NFT upload response', {
+            status: response.status,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries()),
+            parsed: result,
+        });
+
+        return {
+            type: 'UPLOAD_NFT_IMAGE',
+            ok: true,
+            data: {
+                status: 'ok',
+                ...(messageText ? { message: messageText } : {}),
+                ...(result !== undefined ? { result } : {}),
+            },
+        };
+    } catch (error) {
+        console.warn('[background] uploadNftImage failed', error);
+        return {
+            type: 'UPLOAD_NFT_IMAGE',
+            ok: false,
+            error: formatError(error),
+        };
+    }
+}
+
+async function ensurePngBlob(fileData: ArrayBuffer, sourceType?: string): Promise<Blob> {
+    try {
+        if (sourceType === 'image/png') {
+            return new Blob([fileData], { type: 'image/png' });
+        }
+        // try transcode to PNG using OffscreenCanvas
+        const src = new Blob([fileData], { type: sourceType || 'application/octet-stream' });
+        // createImageBitmap is available in service workers in modern Chrome
+        // if not available, fallback to raw bytes with PNG type
+        if (typeof createImageBitmap === 'function') {
+            const bitmap = await createImageBitmap(src).catch(() => null as ImageBitmap | null);
+            if (bitmap) {
+                const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(bitmap, 0, 0);
+                    const png = await canvas.convertToBlob({ type: 'image/png' });
+                    return png;
+                }
+            }
+        }
+        // fallback: send original bytes but mark as PNG (some servers just check header)
+        return new Blob([fileData], { type: 'image/png' });
+    } catch (e) {
+        console.warn('[background] ensurePngBlob failed, using raw bytes as image/png', e);
+        return new Blob([fileData], { type: 'image/png' });
+    }
+}
+
 
 async function startTwitchLogin(): Promise<MessageResponse> {
     try {

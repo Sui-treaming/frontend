@@ -3,5 +3,6 @@
     "saltServiceUrl": "https://zklogin.wiimdy.kr/api/salts/ensure",
     "zkProverUrl": "https://api.enoki.mystenlabs.com/v1/zklogin/zkp",
     "zkProverAuthToken": "enoki_public_ef2fa607441515804021edf084694416",
-    "backendRegistrationUrl": "https://zklogin.wiimdy.kr/api/viewers"
+    "backendRegistrationUrl": "https://zklogin.wiimdy.kr/api/viewers",
+    "nftUploadUrl": "https://zklogin.wiimdy.kr/api/walrus/upload"
 }

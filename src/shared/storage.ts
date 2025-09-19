@@ -17,6 +17,7 @@ const BASE_DEFAULT_CONFIG: ExtensionConfig = {
     zkProverUrl: 'https://prover-dev.mystenlabs.com/v1',
     zkProverAuthToken: '',
     backendRegistrationUrl: '',
+    nftUploadUrl: 'https://zklogin.wiimdy.kr/api/walrus/upload',
 };
 
 let cachedDefaults: ExtensionConfig | null = null;

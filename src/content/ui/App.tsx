@@ -9,6 +9,9 @@ import { initWidgetScale } from '../responsive';
 const NETWORK: NetworkName = 'testnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB limit to avoid oversized images
+
+
 type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions';
 
 type OverviewState = {
@@ -33,6 +36,20 @@ const INITIAL_TRANSFER_FORM: TransferFormState = {
     submitting: false,
 };
 
+type NftUploadState = {
+    file?: File;
+    uploading: boolean;
+    error?: string;
+    successMessage?: string;
+    resetCounter: number;
+};
+
+const INITIAL_NFT_UPLOAD_STATE: NftUploadState = {
+    uploading: false,
+    resetCounter: 0,
+};
+
+
 export function App(): ReactElement | null {
     const [overlayEnabled, setOverlayEnabled] = useState(true);
     const [collapsed, setCollapsed] = useState(false);
@@ -43,6 +60,9 @@ export function App(): ReactElement | null {
     const [activeTabByAccount, setActiveTabByAccount] = useState<Record<string, TabKey>>({});
     const [transferForms, setTransferForms] = useState<Record<string, TransferFormState>>({});
     const [overlayOpacity, setOverlayOpacity] = useState(0.92);
+    const [uploadStates, setUploadStates] = useState<Record<string, NftUploadState>>({});
+
+
     const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
     const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
     const [copiedFor, setCopiedFor] = useState<string | null>(null);
@@ -277,6 +297,14 @@ export function App(): ReactElement | null {
                 delete copy[address];
                 return copy;
             });
+            setUploadStates(prev => {
+                if (!prev[address]) {
+                    return prev;
+                }
+                const copy = { ...prev };
+                delete copy[address];
+                return copy;
+            });
         } catch (err) {
             setError(extractMessage(err));
         }
@@ -341,6 +369,96 @@ export function App(): ReactElement | null {
             }));
         }
     }
+    function updateUploadState(address: string, updater: (prev: NftUploadState) => NftUploadState): void {
+        setUploadStates(prev => {
+            const previous = prev[address] ?? { ...INITIAL_NFT_UPLOAD_STATE };
+            const updated = updater(previous);
+            return {
+                ...prev,
+                [address]: updated,
+            };
+        });
+    }
+
+    function handleUploadFileChange(address: string, files: FileList | null): void {
+        const file = files?.[0];
+        if (!file) {
+            updateUploadState(address, prev => ({
+                ...prev,
+                file: undefined,
+                uploading: false,
+                error: undefined,
+                successMessage: undefined,
+            }));
+            return;
+        }
+        if (file.size > MAX_UPLOAD_BYTES) {
+            updateUploadState(address, prev => ({
+                ...prev,
+                file: undefined,
+                uploading: false,
+                error: 'Image must be 5 MB or smaller.',
+                successMessage: undefined,
+                resetCounter: prev.resetCounter + 1,
+            }));
+            return;
+        }
+        updateUploadState(address, prev => ({
+            ...prev,
+            file,
+            uploading: false,
+            error: undefined,
+            successMessage: undefined,
+        }));
+    }
+
+    async function handleNftUpload(address: string): Promise<void> {
+        const file = uploadStates[address]?.file;
+        if (!file) {
+            updateUploadState(address, prev => ({
+                ...prev,
+                error: 'Select an image before uploading.',
+                successMessage: undefined,
+                uploading: false,
+            }));
+            return;
+        }
+
+        updateUploadState(address, prev => ({
+            ...prev,
+            uploading: true,
+            error: undefined,
+            successMessage: undefined,
+        }));
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const response = await sendMessage({
+                type: 'UPLOAD_NFT_IMAGE',
+                address,
+                fileName: file.name,
+                fileType: file.type || 'application/octet-stream',
+                fileData: buffer,
+            });
+            updateUploadState(address, prev => ({
+                ...prev,
+                file: undefined,
+                uploading: false,
+                error: undefined,
+                successMessage: response.data.message ?? 'NFT image uploaded successfully.',
+                resetCounter: prev.resetCounter + 1,
+            }));
+        } catch (err) {
+            updateUploadState(address, prev => ({
+                ...prev,
+                uploading: false,
+                error: extractMessage(err),
+                successMessage: undefined,
+                file: prev.file ?? file,
+            }));
+        }
+    }
+
 
     const sortedAccounts = useMemo(
         () => [...accounts].sort((a, b) => b.createdAt - a.createdAt),
@@ -602,6 +720,7 @@ export function App(): ReactElement | null {
                             overviews[account.address] ?? { loading: false },
                             activeTabByAccount[account.address] ?? 'overview',
                             transferForms[account.address] ?? INITIAL_TRANSFER_FORM,
+                            uploadStates[account.address] ?? INITIAL_NFT_UPLOAD_STATE,
                         )}
 
                         {renderOverviewFooter(overviews[account.address])}
@@ -655,6 +774,7 @@ export function App(): ReactElement | null {
         state: OverviewState,
         tab: TabKey,
         transferForm: TransferFormState,
+        uploadState: NftUploadState,
     ): ReactElement {
         if (state.loading) {
             return <div className="zklogin-section">Loading…</div>;
@@ -734,6 +854,40 @@ export function App(): ReactElement | null {
         case 'actions':
             return (
                 <div className="zklogin-section">
+                    <h4>Upload NFT image</h4>
+                    <p className="zklogin-muted">Choose an image (max 5 MB) to pre-register upcoming NFT drops.</p>
+                    <div className="zklogin-form">
+                        <label>
+                            Image file
+                            <input
+                                key={uploadState.resetCounter}
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadState.uploading}
+                                onChange={event => {
+                                    handleUploadFileChange(account.address, event.target.files);
+                                }}
+                            />
+                        </label>
+                        {uploadState.file && (
+                            <div className="zklogin-muted">
+                                {uploadState.file.name} ({formatFileSize(uploadState.file.size)})
+                            </div>
+                        )}
+                        {uploadState.error && <div className="zklogin-alert zklogin-alert--error">{uploadState.error}</div>}
+                        {uploadState.successMessage && (
+                            <div className="zklogin-alert zklogin-alert--success">{uploadState.successMessage}</div>
+                        )}
+                        <button
+                            className="zklogin-btn zklogin-btn--primary"
+                            disabled={uploadState.uploading}
+                            onClick={() => { void handleNftUpload(account.address); }}
+                        >
+                            {uploadState.uploading ? 'Uploading…' : 'Upload image'}
+                        </button>
+                    </div>
+
+                    <div style={{ height: 1, background: 'rgba(148, 163, 184, 0.25)', margin: '16px 0' }} />
                     <h4>Send SUI</h4>
                     <div className="zklogin-form">
                         <label>
@@ -789,6 +943,7 @@ export function App(): ReactElement | null {
                     </div>
                 </div>
             );
+        
         default:
             return <div className="zklogin-section">Unsupported tab.</div>;
         }
@@ -798,6 +953,22 @@ export function App(): ReactElement | null {
 function formatNumber(value: number): string {
     return value.toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
+
+function formatFileSize(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 B';
+    }
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
+}
+
 
 function labelForTab(tab: TabKey): string {
     switch (tab) {
