@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjSUS",
   "name": "Twitch zkLogin Wallet",
-  "description": "Chrome extension overlay that connects Twitch OAuth to a Sui zkLogin wallet on Devnet.",
+  "description": "Chrome extension overlay that connects Twitch OAuth to a Sui zkLogin wallet on Testnet.",
   "version": "0.1.0",
   "action": {
     "default_popup": "popup.html",
@@ -24,7 +24,7 @@
     "https://id.twitch.tv/*",
     "https://*.twitch.tv/*",
     "https://prover-dev.mystenlabs.com/*",
-    "https://fullnode.devnet.sui.io/*",
+    "https://fullnode.testnet.sui.io/*",
     "https://salt.api.mystenlabs.com/*"
   ],
   "content_scripts": [

@@ -9,14 +9,15 @@ import { jwtDecode } from 'jwt-decode';
 
 import type { MessageRequest, MessageResponse, SerializedTransactionRequest } from '../shared/messages';
 import type { AccountPublicData, AccountSession, ExtensionConfig, StoredZkLoginProof } from '../shared/types';
-import { DEVNET_FULLNODE } from '../shared/types';
+import { TESTNET_FULLNODE } from '../shared/types';
 import { base64ToUint8, uint8ToBase64 } from '../shared/encoding';
 import { getAccountSessions, getOverlayEnabled, loadConfig, saveConfig, sessionsToPublicData, setAccountSessions, setOverlayEnabled } from '../shared/storage';
 import type { AccountOverviewPayload } from '../shared/messages';
 
 const EPHEMERAL_EPOCH_OFFSET = 2;
+const ZK_LOGIN_NETWORK = 'testnet';
 
-const suiClient = new SuiClient({ url: DEVNET_FULLNODE });
+const suiClient = new SuiClient({ url: TESTNET_FULLNODE });
 
 chrome.runtime.onInstalled.addListener(() => {
     console.info('[background] Twitch zkLogin Wallet extension installed');
@@ -138,22 +139,25 @@ async function startTwitchLogin(): Promise<MessageResponse> {
             throw new Error('Twitch JWT missing audience.');
         }
         const audience = Array.isArray(decodedJwt.aud) ? decodedJwt.aud[0] : decodedJwt.aud;
-
+        console.info('[zklogin] aud from JWT:', audience);
         const salt = await fetchSalt(config.saltServiceUrl, idToken);
         const saltBigInt = BigInt(salt);
 
         const userAddress = jwtToAddress(idToken, saltBigInt);
 
-        const proofRequestPayload = {
+        const proofRequestBody = {
+            network: ZK_LOGIN_NETWORK,
             maxEpoch,
-            jwtRandomness: randomness.toString(),
-            extendedEphemeralPublicKey: getExtendedEphemeralPublicKey(ephemeralKeyPair.getPublicKey()),
-            jwt: idToken,
-            salt: saltBigInt.toString(),
-            keyClaimName: 'sub',
-        };
+            randomness: randomness.toString(),
+            ephemeralPublicKey: getExtendedEphemeralPublicKey(ephemeralKeyPair.getPublicKey()),
+        } as const;
 
-        const proof = await fetchZkProof(config.zkProverUrl, proofRequestPayload);
+        const proof = await fetchZkProof({
+            url: config.zkProverUrl,
+            jwt: idToken,
+            authorizationToken: config.zkProverAuthToken,
+            body: proofRequestBody,
+        });
 
         const sessions = await getAccountSessions();
         const session: AccountSession = {
@@ -436,30 +440,72 @@ async function fetchSalt(url: string, jwt: string): Promise<string> {
     return data.salt;
 }
 
-async function fetchZkProof(url: string, payload: Record<string, unknown>): Promise<StoredZkLoginProof> {
+interface FetchZkProofParams {
+    url: string;
+    jwt: string;
+    authorizationToken?: string;
+    body: {
+        network: string;
+        maxEpoch: number;
+        randomness: string;
+        ephemeralPublicKey: string;
+    };
+}
+
+async function fetchZkProof({ url, jwt, authorizationToken, body }: FetchZkProofParams): Promise<StoredZkLoginProof> {
     if (!/^https?:/i.test(url)) {
         throw new Error('zkProverUrl must be an absolute HTTP(S) URL.');
     }
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'zklogin-jwt': jwt,
+    };
+
+    const token = authorizationToken?.trim();
+    if (token) {
+        headers.Authorization = token.toLowerCase().startsWith('bearer ') ? token : `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers,
+        body: JSON.stringify(body),
     });
     if (!response.ok) {
         const text = await response.text();
         throw new Error(`ZK prover error (HTTP ${response.status}): ${text}`);
     }
-    const data = await response.json() as Partial<StoredZkLoginProof>;
+    const raw = await response.json() as unknown;
 
-    if (!data || typeof data !== 'object') {
+    if (!raw || typeof raw !== 'object') {
         throw new Error('Invalid proof response: expected object.');
     }
 
-    if (!data.proofPoints || !data.issBase64Details || !data.headerBase64) {
-        throw new Error('Invalid proof response: missing fields.');
+    const container = raw as Record<string, unknown>;
+    const top = container as Record<string, unknown>;
+    const nested = (typeof container.data === 'object' && container.data)
+        ? (container.data as Record<string, unknown>)
+        : null;
+
+    const src = (top.proofPoints && top.issBase64Details && top.headerBase64)
+        ? top
+        : (nested && nested.proofPoints && nested.issBase64Details && nested.headerBase64)
+            ? nested
+            : null;
+
+    if (!src) {
+        const keys = Object.keys(container).join(', ');
+        throw new Error(`Invalid proof response: missing fields. Keys present: ${keys}`);
     }
 
-    return data as StoredZkLoginProof;
+    const proof: StoredZkLoginProof = {
+        proofPoints: src.proofPoints as StoredZkLoginProof['proofPoints'],
+        issBase64Details: src.issBase64Details as StoredZkLoginProof['issBase64Details'],
+        headerBase64: src.headerBase64 as StoredZkLoginProof['headerBase64'],
+    };
+
+    return proof;
 }
 
 async function registerAccountWithBackend(config: ExtensionConfig, session: AccountSession): Promise<void> {

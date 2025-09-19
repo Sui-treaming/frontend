@@ -115,7 +115,20 @@ export function OptionsApp(): ReactElement {
                             setConfig(prev => ({ ...prev, zkProverUrl: event.target.value }));
                         }}
                     />
-                    <span className="options__muted">Default: https://prover-dev.mystenlabs.com/v1 (Devnet only).</span>
+                    <span className="options__muted">Default: https://prover-dev.mystenlabs.com/v1 (Testnet only).</span>
+                </div>
+                <div className="options__field">
+                    <label htmlFor="proverToken">zk Prover API token</label>
+                    <input
+                        id="proverToken"
+                        type="password"
+                        value={config.zkProverAuthToken}
+                        onChange={event => {
+                            setStatus(initialStatus);
+                            setConfig(prev => ({ ...prev, zkProverAuthToken: event.target.value }));
+                        }}
+                    />
+                    <span className="options__muted">Used for Authorization when requesting zk proofs from Enoki.</span>
                 </div>
                 <div className="options__field">
                     <label htmlFor="backendRegistrationUrl">Backend Registration URL</label>

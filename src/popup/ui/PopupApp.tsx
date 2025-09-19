@@ -4,7 +4,7 @@ import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../../content/api/runtime';
 import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 
-const NETWORK: NetworkName = 'devnet';
+const NETWORK: NetworkName = 'Testnet';
 
 type OverviewStatus = {
     data?: AccountOverviewPayload;
@@ -136,7 +136,7 @@ export function PopupApp(): ReactElement {
             <header className="popup__header">
                 <div>
                     <h1>Twitch zkLogin Wallet</h1>
-                    <span>Sui Devnet</span>
+                    <span>Sui Testnet</span>
                 </div>
                 <button
                     className="popup__gear"

@@ -30,7 +30,8 @@ export interface ExtensionConfig {
     twitchClientId: string;
     saltServiceUrl: string;
     zkProverUrl: string;
+    zkProverAuthToken: string;
     backendRegistrationUrl: string;
 }
 
-export const DEVNET_FULLNODE = 'https://fullnode.devnet.sui.io';
+export const TESTNET_FULLNODE = 'https://fullnode.testnet.sui.io';

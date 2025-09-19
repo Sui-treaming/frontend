@@ -6,7 +6,7 @@ import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/st
 import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 import { initWidgetScale } from '../responsive';
 
-const NETWORK: NetworkName = 'devnet';
+const NETWORK: NetworkName = 'testnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
 
 type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions';
@@ -446,7 +446,7 @@ export function App(): ReactElement | null {
             <header className="zklogin-overlay__header">
                 <div>
                     <span className="zklogin-overlay__title">Twitch zkLogin Wallet</span>
-                    <span className="zklogin-overlay__subtitle">Sui Devnet</span>
+                    <span className="zklogin-overlay__subtitle">Sui Testnet</span>
                 </div>
                 <div className="zklogin-overlay__header-actions">
                     <div className="zklogin-overlay__opacity">
@@ -607,7 +607,7 @@ export function App(): ReactElement | null {
         if (!overviewState.data) {
             return null;
         }
-        return <p className="zklogin-card__footer">Last updated just now. Data sourced from Sui Devnet.</p>;
+        return <p className="zklogin-card__footer">Last updated just now. Data sourced from Sui Testnet.</p>;
     }
 
     function renderTabContent(
