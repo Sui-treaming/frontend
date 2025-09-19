@@ -2,12 +2,13 @@
 
 import { SuiClient } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { genAddressSeed, generateNonce, generateRandomness, getExtendedEphemeralPublicKey, getZkLoginSignature, jwtToAddress } from '@mysten/sui/zklogin';
 import type { JwtPayload } from 'jwt-decode';
 import { jwtDecode } from 'jwt-decode';
 
 import type { MessageRequest, MessageResponse, SerializedTransactionRequest } from '../shared/messages';
-import type { AccountPublicData, AccountSession } from '../shared/types';
+import type { AccountPublicData, AccountSession, StoredZkLoginProof } from '../shared/types';
 import { DEVNET_FULLNODE } from '../shared/types';
 import { base64ToUint8, uint8ToBase64 } from '../shared/encoding';
 import { getAccountSessions, getOverlayEnabled, loadConfig, saveConfig, sessionsToPublicData, setAccountSessions, setOverlayEnabled } from '../shared/storage';
@@ -166,7 +167,7 @@ async function startTwitchLogin(): Promise<MessageResponse> {
             randomness: randomness.toString(),
             jwt: idToken,
             proof,
-            ephemeralPrivateKey: uint8ToBase64(ephemeralKeyPair.getSecretKey()),
+            ephemeralPrivateKey: uint8ToBase64(decodeSuiPrivateKey(ephemeralKeyPair.getSecretKey()).secretKey),
         };
 
         const filteredSessions = sessions.filter(existing => existing.address !== session.address);
@@ -261,30 +262,30 @@ async function buildAccountOverview(address: string): Promise<AccountOverviewPay
             balance: Number(balance.totalBalance) / 1_000_000_000,
         }));
 
-    const nfts = objectResponse.data
-        .map(item => {
-            const display = item.data?.display?.data;
-            const name = typeof display?.name === 'string' ? display.name : null;
-            const desc = typeof display?.description === 'string' ? display.description : null;
-            const type = item.data?.type ?? 'unknown';
-            if (!name && type.startsWith('0x2::coin::')) {
-                return null;
-            }
-            return {
-                display: name ?? type,
-                objectId: item.data?.objectId ?? 'unknown',
-                description: desc ?? undefined,
-            };
-        })
-        .filter((entry): entry is { display: string; objectId: string; description?: string } => !!entry);
+    const nfts = objectResponse.data.reduce<Array<{ display: string; objectId: string; description?: string }>>((list, item) => {
+        const display = item.data?.display?.data;
+        const name = typeof display?.name === 'string' ? display.name : null;
+        const description = typeof display?.description === 'string' ? display.description : undefined;
+        const type = item.data?.type ?? 'unknown';
+        if (!name && type.startsWith('0x2::coin::')) {
+            return list;
+        }
+        list.push({
+            display: name ?? type,
+            objectId: item.data?.objectId ?? 'unknown',
+            ...(description ? { description } : {}),
+        });
+        return list;
+    }, []);
 
     const deduped = new Map<string, { digest: string; kind: string; timestampMs?: string }>();
     const appendTx = (txList: typeof incomingTxs.data) => {
         (txList ?? []).forEach(tx => {
             if (!deduped.has(tx.digest)) {
+                const kind = tx.transaction?.data.transaction.kind ?? 'unknown';
                 deduped.set(tx.digest, {
                     digest: tx.digest,
-                    kind: tx.transaction?.kind ?? 'unknown',
+                    kind,
                     timestampMs: tx.timestampMs ?? undefined,
                 });
             }
@@ -324,7 +325,7 @@ async function executeTransactionWithSession(session: AccountSession, payload: S
 
     const zkLoginSignature = getZkLoginSignature({
         inputs: {
-            ...(session.proof as Record<string, unknown>),
+            ...session.proof,
             addressSeed,
         },
         maxEpoch: session.maxEpoch,
@@ -346,13 +347,15 @@ async function buildTransaction(sender: string, payload: SerializedTransactionRe
         if (typeof payload.amount !== 'number' || !payload.recipient) {
             throw new Error('Transfer SUI requires a recipient and numeric amount.');
         }
+        const amount = BigInt(Math.floor(payload.amount * 1_000_000_000));
+        if (amount <= 0n) {
+            throw new Error('Transfer amount must be greater than zero.');
+        }
         const { Transaction } = await import('@mysten/sui/transactions');
         const tx = new Transaction();
         tx.setSender(sender);
-        tx.transferSui({
-            recipient: payload.recipient,
-            amount: BigInt(Math.floor(payload.amount * 1_000_000_000)),
-        });
+        const [transferCoin] = tx.splitCoins(tx.gas, [amount]);
+        tx.transferObjects([transferCoin], tx.pure.address(payload.recipient));
         return tx;
     }
     case 'custom': {
@@ -431,7 +434,7 @@ async function fetchSalt(url: string, jwt: string): Promise<string> {
     return data.salt;
 }
 
-async function fetchZkProof(url: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function fetchZkProof(url: string, payload: Record<string, unknown>): Promise<StoredZkLoginProof> {
     if (!/^https?:/i.test(url)) {
         throw new Error('zkProverUrl must be an absolute HTTP(S) URL.');
     }
@@ -444,7 +447,17 @@ async function fetchZkProof(url: string, payload: Record<string, unknown>): Prom
         const text = await response.text();
         throw new Error(`ZK prover error (HTTP ${response.status}): ${text}`);
     }
-    return await response.json() as Record<string, unknown>;
+    const data = await response.json() as Partial<StoredZkLoginProof>;
+
+    if (!data || typeof data !== 'object') {
+        throw new Error('Invalid proof response: expected object.');
+    }
+
+    if (!data.proofPoints || !data.issBase64Details || !data.headerBase64) {
+        throw new Error('Invalid proof response: missing fields.');
+    }
+
+    return data as StoredZkLoginProof;
 }
 
 function formatError(error: unknown): string {

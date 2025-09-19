@@ -3,6 +3,10 @@
   "name": "Twitch zkLogin Wallet",
   "description": "Chrome extension overlay that connects Twitch OAuth to a Sui zkLogin wallet on Devnet.",
   "version": "0.1.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Twitch zkLogin Wallet"
+  },
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"

@@ -10,15 +10,36 @@ export type MessageRequest =
     | { type: 'GET_CONFIG' }
     | { type: 'SET_OVERLAY_ENABLED'; enabled: boolean };
 
+type SuccessResponse<T extends MessageRequest['type'], D> = {
+    type: T;
+    ok: true;
+    data: D;
+    error?: string;
+};
+
+type ErrorResponse<T extends MessageRequest['type']> = {
+    type: T;
+    ok: false;
+    error: string;
+};
+
 export type MessageResponse =
-    | { type: 'GET_EXTENSION_STATE'; ok: boolean; data?: { state: ExtensionState }; error?: string }
-    | { type: 'START_TWITCH_LOGIN'; ok: boolean; data?: { account: AccountPublicData }; error?: string }
-    | { type: 'LOGOUT_ACCOUNT'; ok: boolean; data?: { accounts: AccountPublicData[] }; error?: string }
-    | { type: 'SIGN_AND_EXECUTE'; ok: boolean; data?: { digest: string }; error?: string }
-    | { type: 'FETCH_ACCOUNT_OVERVIEW'; ok: boolean; data?: { overview: AccountOverviewPayload }; error?: string }
-    | { type: 'SAVE_CONFIG'; ok: boolean; data?: { config: ExtensionConfig }; error?: string }
-    | { type: 'GET_CONFIG'; ok: boolean; data?: { config: ExtensionConfig }; error?: string }
-    | { type: 'SET_OVERLAY_ENABLED'; ok: boolean; data?: { enabled: boolean }; error?: string };
+    | SuccessResponse<'GET_EXTENSION_STATE', { state: ExtensionState }>
+    | ErrorResponse<'GET_EXTENSION_STATE'>
+    | SuccessResponse<'START_TWITCH_LOGIN', { account: AccountPublicData }>
+    | ErrorResponse<'START_TWITCH_LOGIN'>
+    | SuccessResponse<'LOGOUT_ACCOUNT', { accounts: AccountPublicData[] }>
+    | ErrorResponse<'LOGOUT_ACCOUNT'>
+    | SuccessResponse<'SIGN_AND_EXECUTE', { digest: string }>
+    | ErrorResponse<'SIGN_AND_EXECUTE'>
+    | SuccessResponse<'FETCH_ACCOUNT_OVERVIEW', { overview: AccountOverviewPayload }>
+    | ErrorResponse<'FETCH_ACCOUNT_OVERVIEW'>
+    | SuccessResponse<'SAVE_CONFIG', { config: ExtensionConfig }>
+    | ErrorResponse<'SAVE_CONFIG'>
+    | SuccessResponse<'GET_CONFIG', { config: ExtensionConfig }>
+    | ErrorResponse<'GET_CONFIG'>
+    | SuccessResponse<'SET_OVERLAY_ENABLED', { enabled: boolean }>
+    | ErrorResponse<'SET_OVERLAY_ENABLED'>;
 
 export interface AccountOverviewPayload {
     address: string;

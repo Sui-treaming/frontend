@@ -15,7 +15,11 @@
         "module": "ESNext",
         "moduleResolution": "bundler",
         "resolveJsonModule": true,
-        "types": ["chrome"],
+        "types": [
+            "chrome",
+            "react",
+            "react-dom"
+        ],
         "noEmit": true,
         "isolatedModules": true,
         "esModuleInterop": true,

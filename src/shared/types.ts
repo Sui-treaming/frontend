@@ -1,3 +1,5 @@
+import type { ZkLoginSignatureInputs } from '@mysten/sui/zklogin';
+
 export type OAuthProvider = 'twitch';
 
 export interface AccountPublicData {
@@ -9,11 +11,13 @@ export interface AccountPublicData {
     createdAt: number;
 }
 
+export type StoredZkLoginProof = Omit<ZkLoginSignatureInputs, 'addressSeed'>;
+
 export interface AccountSession extends AccountPublicData {
     salt: string;
     randomness: string;
     jwt: string;
-    proof: Record<string, unknown>;
+    proof: StoredZkLoginProof;
     ephemeralPrivateKey: string;
 }
 

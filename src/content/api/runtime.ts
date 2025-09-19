@@ -1,12 +1,10 @@
 import type { MessageRequest, MessageResponse } from '../../shared/messages';
 
-type ResponseOf<T extends MessageRequest['type']> = Extract<MessageResponse, { type: T }>;
-
-type Awaitable<T> = T extends Promise<infer U> ? U : T;
+type SuccessResponseOf<T extends MessageRequest['type']> = Extract<MessageResponse, { type: T; ok: true }>;
 
 export async function sendMessage<T extends MessageRequest>(
     request: T,
-): Promise<Awaitable<ResponseOf<T['type']>>> {
+): Promise<SuccessResponseOf<T['type']>> {
     return await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(request, (response: MessageResponse | undefined) => {
             if (chrome.runtime.lastError) {
@@ -25,7 +23,7 @@ export async function sendMessage<T extends MessageRequest>(
                 reject(new Error(response.error ?? 'Background call failed.'));
                 return;
             }
-            resolve(response as ResponseOf<T['type']>);
+            resolve(response as SuccessResponseOf<T['type']>);
         });
     });
 }

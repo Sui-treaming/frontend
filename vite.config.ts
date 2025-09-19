@@ -1,6 +1,9 @@
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react-swc';
 import { defineConfig } from 'vite';
+
+const rootDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     plugins: [react()],
@@ -11,9 +14,10 @@ export default defineConfig({
         cssCodeSplit: true,
         rollupOptions: {
             input: {
-                background: resolve(__dirname, 'src/background/index.ts'),
-                content: resolve(__dirname, 'src/content/index.tsx'),
-                options: resolve(__dirname, 'options.html'),
+                background: resolve(rootDir, 'src/background/index.ts'),
+                content: resolve(rootDir, 'src/content/index.tsx'),
+                options: resolve(rootDir, 'options.html'),
+                popup: resolve(rootDir, 'popup.html'),
             },
             output: {
                 entryFileNames: 'assets/[name].js',

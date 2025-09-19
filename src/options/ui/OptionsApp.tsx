@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { DEFAULT_CONFIG, getOverlayEnabled, loadConfig, saveConfig, setOverlayEnabled, SESSION_KEY } from '../../shared/storage';
 import type { ExtensionConfig } from '../../shared/types';
 
@@ -9,7 +9,7 @@ interface StatusState {
 
 const initialStatus: StatusState = { message: '', tone: 'neutral' };
 
-export function OptionsApp(): JSX.Element {
+export function OptionsApp(): ReactElement {
     const [config, setConfig] = useState<ExtensionConfig>(DEFAULT_CONFIG);
     const [overlayEnabled, setOverlaySwitch] = useState(true);
     const [status, setStatus] = useState<StatusState>(initialStatus);

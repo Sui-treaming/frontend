@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../api/runtime';
@@ -32,7 +32,7 @@ const INITIAL_TRANSFER_FORM: TransferFormState = {
     submitting: false,
 };
 
-export function App(): JSX.Element | null {
+export function App(): ReactElement | null {
     const [overlayEnabled, setOverlayEnabled] = useState(true);
     const [collapsed, setCollapsed] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -342,7 +342,7 @@ export function App(): JSX.Element | null {
         </div>
     );
 
-    function renderOverviewFooter(overviewState?: OverviewState): JSX.Element | null {
+    function renderOverviewFooter(overviewState?: OverviewState): ReactElement | null {
         if (!overviewState) {
             return null;
         }
@@ -363,7 +363,7 @@ export function App(): JSX.Element | null {
         state: OverviewState,
         tab: TabKey,
         transferForm: TransferFormState,
-    ): JSX.Element {
+    ): ReactElement {
         if (state.loading) {
             return <div className="zklogin-section">Loading…</div>;
         }
@@ -427,7 +427,7 @@ export function App(): JSX.Element | null {
                         {(data?.recentTransactions ?? []).map(tx => (
                             <li key={tx.digest}>
                                 <a
-                                    href={makePolymediaUrl(NETWORK, 'txblock', tx.digest)}
+                                    href={makePolymediaUrl(NETWORK, 'tx', tx.digest)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

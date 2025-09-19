@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/_init.tsx","./vite.config.ts"],"errors":true,"version":"5.8.3"}
+{"root":["./src/background/index.ts","./src/content/index.tsx","./src/content/api/runtime.ts","./src/content/ui/App.tsx","./src/options/main.tsx","./src/options/ui/OptionsApp.tsx","./src/popup/main.tsx","./src/popup/ui/PopupApp.tsx","./src/shared/encoding.ts","./src/shared/messages.ts","./src/shared/storage.ts","./src/shared/types.ts","./src/types/node-compat.d.ts","./vite.config.ts"],"version":"5.9.2"}
