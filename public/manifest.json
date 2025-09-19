@@ -24,8 +24,10 @@
     "https://id.twitch.tv/*",
     "https://*.twitch.tv/*",
     "https://prover-dev.mystenlabs.com/*",
+    "https://api.enoki.mystenlabs.com/*",
     "https://fullnode.testnet.sui.io/*",
-    "https://salt.api.mystenlabs.com/*"
+    "https://salt.api.mystenlabs.com/*",
+    "https://zklogin.wiimdy.kr/*"
   ],
   "content_scripts": [
     {

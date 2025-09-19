@@ -42,11 +42,19 @@ export async function loadConfig(): Promise<ExtensionConfig> {
         resolveDefaults(),
         chrome.storage.local.get(CONFIG_KEY) as Promise<{ [CONFIG_KEY]?: ExtensionConfig }>,
     ]);
-    return { ...defaults, ...(stored[CONFIG_KEY] ?? {}) };
+    const merged: ExtensionConfig = { ...defaults, ...(stored[CONFIG_KEY] ?? {}) };
+    const sanitized = sanitizeConfig(merged);
+    // If we changed anything (e.g., enforce /salts/ensure), persist back
+    if (JSON.stringify(sanitized) !== JSON.stringify(merged)) {
+        await saveConfig(sanitized);
+        return sanitized;
+    }
+    return merged;
 }
 
 export async function saveConfig(config: ExtensionConfig): Promise<void> {
-    await chrome.storage.local.set({ [CONFIG_KEY]: config });
+    const sanitized = sanitizeConfig(config);
+    await chrome.storage.local.set({ [CONFIG_KEY]: sanitized });
 }
 
 export async function getOverlayEnabled(): Promise<boolean> {
@@ -93,3 +101,12 @@ export function sessionsToPublicData(sessions: AccountSession[]): AccountPublicD
 }
 
 export const DEFAULT_CONFIG: ExtensionConfig = { ...BASE_DEFAULT_CONFIG };
+
+function sanitizeConfig(config: ExtensionConfig): ExtensionConfig {
+    const out = { ...config };
+    // Enforce secure salt flow: always target /salts/ensure
+    if (/\/salts(?!\/ensure)\/?$/i.test(out.saltServiceUrl)) {
+        out.saltServiceUrl = out.saltServiceUrl.replace(/\/$/, '') + '/ensure';
+    }
+    return out;
+}

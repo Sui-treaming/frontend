@@ -146,7 +146,7 @@ async function startTwitchLogin(): Promise<MessageResponse> {
             twitchId: decodedJwt.sub,
             jwt: idToken,
         });
-        const saltBigInt = BigInt(salt);
+        const saltBigInt = normalizeToField(BigInt(salt));
 
         const userAddress = jwtToAddress(idToken, saltBigInt);
 
@@ -522,39 +522,24 @@ async function resolveSalt(params: { url: string; twitchId: string; jwt: string 
     const { url, twitchId, jwt } = params;
     const lower = url.toLowerCase();
 
-    // Unified behavior for backend salts API:
-    // 1) GET /salts/:twitchId → use existing
-    // 2) If 404 → generate salt locally and POST /salts to persist
+    // Secure backend flow: POST /salts/ensure with JWT; backend returns salt without exposing via GET
     if (lower.includes('/salts')) {
-        // Normalize to base /salts path (strip trailing slash or /ensure if present)
-        const base = url.replace(/\/$/, '').replace(/\/ensure$/i, '');
-
-        // 1) Try to read existing
-        const getResp = await fetch(`${base}/${encodeURIComponent(twitchId)}`);
-        if (getResp.ok) {
-            const data = await getResp.json() as { salt?: string } | Record<string, unknown>;
-            const found = (data as any)?.salt;
-            if (typeof found === 'string' && found.length > 0) return found;
-        } else if (getResp.status !== 404) {
-            const text = await getResp.text();
-            throw new Error(`Salt read failed (HTTP ${getResp.status}): ${text}`);
-        }
-
-        // 2) Generate 256-bit salt locally and upsert
-        const generated = generateSaltDecimalBrowser(32);
-        const upsertResp = await fetch(base, {
+        const ensureEndpoint = url.toLowerCase().includes('/ensure')
+            ? url
+            : url.replace(/\/$/, '') + '/ensure';
+        const resp = await fetch(ensureEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ twitchId, salt: generated }),
+            body: JSON.stringify({ jwt }),
         });
-        if (!upsertResp.ok) {
-            const text = await upsertResp.text();
-            throw new Error(`Salt upsert failed (HTTP ${upsertResp.status}): ${text}`);
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`Salt ensure failed (HTTP ${resp.status}): ${text}`);
         }
-        const saved = await upsertResp.json() as { salt?: string } | Record<string, unknown>;
+        const saved = await resp.json() as { salt?: string } | Record<string, unknown>;
         const value = (saved as any)?.salt;
         if (!value || typeof value !== 'string') {
-            throw new Error('Invalid salt upsert response: missing salt');
+            throw new Error('Invalid salt ensure response: missing salt');
         }
         return value;
     }
@@ -563,14 +548,14 @@ async function resolveSalt(params: { url: string; twitchId: string; jwt: string 
     return fetchSalt(url, jwt);
 }
 
-function generateSaltDecimalBrowser(byteLength = 32): string {
-    const bytes = new Uint8Array(byteLength);
-    crypto.getRandomValues(bytes);
-    let hex = '0x';
-    for (let i = 0; i < bytes.length; i++) {
-        hex += bytes[i].toString(16).padStart(2, '0');
-    }
-    return BigInt(hex).toString(10);
+// No longer generating salts client-side in the secure path
+
+// BN254 scalar field modulus
+const FIELD_MODULUS_BN254 = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
+
+function normalizeToField(x: bigint): bigint {
+    const n = x % FIELD_MODULUS_BN254;
+    return n === 0n ? 1n : n;
 }
 
 async function registerAccountWithBackend(config: ExtensionConfig, session: AccountSession): Promise<void> {
