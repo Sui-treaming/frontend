@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjSUS",
   "name": "Twitch zkLogin Wallet",
   "description": "Chrome extension overlay that connects Twitch OAuth to a Sui zkLogin wallet on Devnet.",
   "version": "0.1.0",
