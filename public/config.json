@@ -1,6 +1,6 @@
 {
     "twitchClientId": "g1neraf6lh4pvc8ch1pm902i65ph6r",
-    "saltServiceUrl": "https://zklogin.wiimdy.kr/api/salts",
+    "saltServiceUrl": "https://zklogin.wiimdy.kr/api/salts/ensure",
     "zkProverUrl": "https://api.enoki.mystenlabs.com/v1/zklogin/zkp",
     "zkProverAuthToken": "enoki_public_ef2fa607441515804021edf084694416",
     "backendRegistrationUrl": "https://zklogin.wiimdy.kr/api/viewers"
