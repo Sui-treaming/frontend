@@ -140,7 +140,12 @@ async function startTwitchLogin(): Promise<MessageResponse> {
         }
         const audience = Array.isArray(decodedJwt.aud) ? decodedJwt.aud[0] : decodedJwt.aud;
         console.info('[zklogin] aud from JWT:', audience);
-        const salt = await fetchSalt(config.saltServiceUrl, idToken);
+        // Ensure salt exists for this Twitch user in backend (or fallback to legacy fetch)
+        const salt = await resolveSalt({
+            url: config.saltServiceUrl,
+            twitchId: decodedJwt.sub,
+            jwt: idToken,
+        });
         const saltBigInt = BigInt(salt);
 
         const userAddress = jwtToAddress(idToken, saltBigInt);
@@ -506,6 +511,66 @@ async function fetchZkProof({ url, jwt, authorizationToken, body }: FetchZkProof
     };
 
     return proof;
+}
+
+/**
+ * Resolve a salt value for a Twitch user.
+ * - If the configured URL points to our backend salts API, call `/salts/ensure` with { twitchId }.
+ * - Otherwise, fallback to legacy behavior: POST { jwt } to the given salt service (or dummy JSON).
+ */
+async function resolveSalt(params: { url: string; twitchId: string; jwt: string }): Promise<string> {
+    const { url, twitchId, jwt } = params;
+    const lower = url.toLowerCase();
+
+    // Unified behavior for backend salts API:
+    // 1) GET /salts/:twitchId → use existing
+    // 2) If 404 → generate salt locally and POST /salts to persist
+    if (lower.includes('/salts')) {
+        // Normalize to base /salts path (strip trailing slash or /ensure if present)
+        const base = url.replace(/\/$/, '').replace(/\/ensure$/i, '');
+
+        // 1) Try to read existing
+        const getResp = await fetch(`${base}/${encodeURIComponent(twitchId)}`);
+        if (getResp.ok) {
+            const data = await getResp.json() as { salt?: string } | Record<string, unknown>;
+            const found = (data as any)?.salt;
+            if (typeof found === 'string' && found.length > 0) return found;
+        } else if (getResp.status !== 404) {
+            const text = await getResp.text();
+            throw new Error(`Salt read failed (HTTP ${getResp.status}): ${text}`);
+        }
+
+        // 2) Generate 256-bit salt locally and upsert
+        const generated = generateSaltDecimalBrowser(32);
+        const upsertResp = await fetch(base, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ twitchId, salt: generated }),
+        });
+        if (!upsertResp.ok) {
+            const text = await upsertResp.text();
+            throw new Error(`Salt upsert failed (HTTP ${upsertResp.status}): ${text}`);
+        }
+        const saved = await upsertResp.json() as { salt?: string } | Record<string, unknown>;
+        const value = (saved as any)?.salt;
+        if (!value || typeof value !== 'string') {
+            throw new Error('Invalid salt upsert response: missing salt');
+        }
+        return value;
+    }
+
+    // Fallback for non-backend / dummy service
+    return fetchSalt(url, jwt);
+}
+
+function generateSaltDecimalBrowser(byteLength = 32): string {
+    const bytes = new Uint8Array(byteLength);
+    crypto.getRandomValues(bytes);
+    let hex = '0x';
+    for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return BigInt(hex).toString(10);
 }
 
 async function registerAccountWithBackend(config: ExtensionConfig, session: AccountSession): Promise<void> {
