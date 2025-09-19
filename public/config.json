@@ -2,5 +2,5 @@
   "twitchClientId": "g1neraf6lh4pvc8ch1pm902i65ph6r",
   "saltServiceUrl": "/dummy-salt-service.json",
   "zkProverUrl": "https://prover-dev.mystenlabs.com/v1",
-  "backendRegistrationUrl": ""
+  "backendRegistrationUrl": "https://zklogin.wiimdy.kr/api/viewers"
 }
