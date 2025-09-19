@@ -26,10 +26,12 @@ const CHANNEL_POINTS_BALANCE_SELECTORS = [
 ];
 
 let mintAnimationTimer: number | null = null;
+let pendingButtonMint = false;
 
 let observedContainer: HTMLElement | null = null;
 let observer: MutationObserver | null = null;
 let claimButtonObserver: MutationObserver | null = null;
+let balanceObserver: MutationObserver | null = null;
 
 let state: WidgetState = restoreState();
 const listeners = new Set<(state: WidgetState) => void>();
@@ -83,6 +85,40 @@ function emitState(): void {
     });
 }
 
+function updateChannelPoints(newBalance: number, options?: { silent?: boolean }): void {
+    const previous = state.channelPoints ?? null;
+    if (previous === newBalance) {
+        return;
+    }
+
+    state.channelPoints = newBalance;
+    persistState();
+
+    if (options?.silent) {
+        emitState();
+        return;
+    }
+
+    if (pendingButtonMint) {
+        pendingButtonMint = false;
+        if (observedContainer) {
+            renderWidget(observedContainer);
+        }
+        emitState();
+        return;
+    }
+
+    if (previous !== null && newBalance > previous) {
+        markMinted();
+        return;
+    } else {
+        if (observedContainer) {
+            renderWidget(observedContainer);
+        }
+        emitState();
+    }
+}
+
 export function getWidgetState(): WidgetState {
     return cloneState();
 }
@@ -126,9 +162,8 @@ function renderWidget(container: HTMLElement): void {
     const element = ensureWidget(container);
 
     const balance = readChannelPointsBalance(container);
-    if (balance !== null && state.channelPoints !== balance) {
-        state.channelPoints = balance;
-        persistState();
+    if (balance !== null) {
+        updateChannelPoints(balance, { silent: true });
     }
 
     const mintedLabel = state.mintedCount === 1 ? 'mint' : 'mints';
@@ -244,7 +279,11 @@ function attachClaimListener(container: HTMLElement): void {
                 button.dataset.zkloginHooked = 'true';
                 button.addEventListener('click', () => {
                     console.info('[content] Detected channel point claim (mock)');
+                    pendingButtonMint = true;
                     markMinted();
+                    window.setTimeout(() => {
+                        pendingButtonMint = false;
+                    }, 5000);
                 });
                 return;
             }
@@ -261,6 +300,30 @@ function attachClaimListener(container: HTMLElement): void {
     claimButtonObserver.observe(container, { childList: true, subtree: true });
 }
 
+function observeChannelPoints(container: HTMLElement): void {
+    if (balanceObserver) {
+        balanceObserver.disconnect();
+    }
+
+    const initial = readChannelPointsBalance(container);
+    if (initial !== null) {
+        updateChannelPoints(initial, { silent: true });
+    }
+
+    balanceObserver = new MutationObserver(() => {
+        const latest = readChannelPointsBalance(container);
+        if (latest !== null) {
+            updateChannelPoints(latest);
+        }
+    });
+
+    balanceObserver.observe(container, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+    });
+}
+
 function installWidget(): void {
     const container = findChannelPointsContainer();
     if (!container) {
@@ -270,6 +333,7 @@ function installWidget(): void {
     observedContainer = container;
     renderWidget(container);
     attachClaimListener(container);
+    observeChannelPoints(container);
 }
 
 function bootstrapObserver(): void {
@@ -279,6 +343,10 @@ function bootstrapObserver(): void {
 
     observer = new MutationObserver(() => {
         if (!observedContainer || !document.body.contains(observedContainer)) {
+            if (balanceObserver) {
+                balanceObserver.disconnect();
+                balanceObserver = null;
+            }
             observedContainer = null;
         }
         if (!observedContainer) {
