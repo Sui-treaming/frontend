@@ -16,6 +16,27 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB limit to avoid oversized image
 
 type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions' | 'subscription';
 
+const MIN_OVERLAY_WIDTH = 320;
+const MAX_OVERLAY_WIDTH = 760;
+const MIN_OVERLAY_HEIGHT = 360;
+const MAX_OVERLAY_HEIGHT = 880;
+
+function getInitialOverlaySize(): { width: number; height: number } {
+    if (typeof window === 'undefined') {
+        return { width: 420, height: 560 };
+    }
+    const preferredHeight = Math.round(window.innerHeight * 0.68);
+    const height = Math.min(
+        Math.max(MIN_OVERLAY_HEIGHT, preferredHeight),
+        Math.max(MIN_OVERLAY_HEIGHT, Math.min(MAX_OVERLAY_HEIGHT, window.innerHeight - 60)),
+    );
+    const width = Math.min(
+        Math.max(MIN_OVERLAY_WIDTH, 420),
+        Math.max(MIN_OVERLAY_WIDTH, Math.min(MAX_OVERLAY_WIDTH, window.innerWidth - 40)),
+    );
+    return { width, height };
+}
+
 type OverviewState = {
     data?: AccountOverviewPayload;
     loading: boolean;
@@ -55,6 +76,7 @@ export function App(): ReactElement | null {
     const [transferForms, setTransferForms] = useState<Record<string, TransferFormState>>({});
     const [overlayOpacity, setOverlayOpacity] = useState(0.92);
     const [uploadStates, setUploadStates] = useState<Record<string, NftUploadState>>({});
+    const [overlaySize, setOverlaySize] = useState(() => getInitialOverlaySize());
 
 
     const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
@@ -70,14 +92,58 @@ export function App(): ReactElement | null {
         width: number;
         height: number;
     } | null>(null);
+    const resizeDataRef = useRef<{
+        pointerId: number;
+        startX: number;
+        startY: number;
+        startWidth: number;
+        startHeight: number;
+    } | null>(null);
+    const resizeCleanupRef = useRef<(() => void) | null>(null);
 
     const clamp = useCallback((value: number, min: number, max: number) => {
         return Math.min(Math.max(value, min), max);
     }, []);
 
+    const clampWidth = useCallback((value: number) => {
+        const viewportLimit = typeof window === 'undefined'
+            ? MAX_OVERLAY_WIDTH
+            : Math.max(
+                MIN_OVERLAY_WIDTH,
+                Math.min(MAX_OVERLAY_WIDTH, window.innerWidth - 40),
+            );
+        return clamp(Math.round(value), MIN_OVERLAY_WIDTH, viewportLimit);
+    }, [clamp]);
+
+    const clampHeight = useCallback((value: number) => {
+        const viewportLimit = typeof window === 'undefined'
+            ? MAX_OVERLAY_HEIGHT
+            : Math.max(
+                MIN_OVERLAY_HEIGHT,
+                Math.min(MAX_OVERLAY_HEIGHT, window.innerHeight - 40),
+            );
+        return clamp(Math.round(value), MIN_OVERLAY_HEIGHT, viewportLimit);
+    }, [clamp]);
+
     useEffect(() => {
         initWidgetScale();
     }, []);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setOverlaySize(prev => ({
+                width: clampWidth(prev.width),
+                height: clampHeight(prev.height),
+            }));
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
+        };
+    }, [clampHeight, clampWidth]);
 
     useEffect(() => {
         void bootstrap();
@@ -191,6 +257,15 @@ export function App(): ReactElement | null {
             document.removeEventListener('pointerdown', handlePointerDown, true);
         };
     }, [opacityPopoverOpen]);
+
+    useEffect(() => {
+        return () => {
+            if (resizeCleanupRef.current) {
+                resizeCleanupRef.current();
+                resizeCleanupRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const root = document.getElementById('twitch-zklogin-wallet-root');
@@ -482,6 +557,9 @@ export function App(): ReactElement | null {
         if (target?.closest('button,input,select,textarea,a')) {
             return;
         }
+        if (target?.closest('[data-resize-handle]')) {
+            return;
+        }
         // 확장된 상태에서는 헤더에서만 드래그 시작 허용
         if (!collapsed && !target?.closest('.zklogin-overlay__header')) {
             return;
@@ -539,6 +617,78 @@ export function App(): ReactElement | null {
         }
     }, [clearDragState]);
 
+    const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (collapsed) {
+            return;
+        }
+        event.stopPropagation();
+        event.preventDefault();
+        const overlay = overlayRef.current;
+        if (!overlay) {
+            return;
+        }
+        const rect = overlay.getBoundingClientRect();
+        const start = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startWidth: rect.width,
+            startHeight: rect.height,
+        };
+        resizeDataRef.current = start;
+
+        const handlePointerMove = (pointerEvent: PointerEvent) => {
+            if (!resizeDataRef.current || resizeDataRef.current.pointerId !== pointerEvent.pointerId) {
+                return;
+            }
+            const deltaX = pointerEvent.clientX - start.startX;
+            const deltaY = pointerEvent.clientY - start.startY;
+            setOverlaySize(prev => {
+                const nextWidth = clampWidth(start.startWidth + deltaX);
+                const nextHeight = clampHeight(start.startHeight + deltaY);
+                if (prev.width === nextWidth && prev.height === nextHeight) {
+                    return prev;
+                }
+                return {
+                    width: nextWidth,
+                    height: nextHeight,
+                };
+            });
+        };
+
+        const cleanup = () => {
+            resizeDataRef.current = null;
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerEnd);
+            window.removeEventListener('pointercancel', handlePointerEnd);
+            resizeCleanupRef.current = null;
+        };
+
+        const handlePointerEnd = (pointerEvent: PointerEvent) => {
+            if (resizeDataRef.current && resizeDataRef.current.pointerId !== pointerEvent.pointerId) {
+                return;
+            }
+            cleanup();
+        };
+
+        resizeCleanupRef.current = cleanup;
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerEnd, { once: false });
+        window.addEventListener('pointercancel', handlePointerEnd, { once: false });
+    }, [clampHeight, clampWidth, collapsed]);
+
+    const overlayStyle = useMemo(() => {
+        const width = `${overlaySize.width}px`;
+        if (collapsed) {
+            return { width };
+        }
+        return {
+            width,
+            height: `${overlaySize.height}px`,
+        };
+    }, [collapsed, overlaySize.height, overlaySize.width]);
+
     if (!overlayEnabled) {
         return (
             <div className="zklogin-overlay-disabled">
@@ -561,6 +711,7 @@ export function App(): ReactElement | null {
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
             data-collapsed={collapsed ? 'true' : 'false'}
+            style={overlayStyle}
         >
             <header className="zklogin-overlay__header">
                 <div>
@@ -620,7 +771,8 @@ export function App(): ReactElement | null {
             </header>
 
             {!collapsed && (
-            <div className="zklogin-overlay__body">
+            <>
+                <div className="zklogin-overlay__body">
                 {error && <div className="zklogin-alert zklogin-alert--error">{error}</div>}
 
                 {sortedAccounts.length === 0 && (
@@ -720,7 +872,17 @@ export function App(): ReactElement | null {
                         {renderOverviewFooter(overviews[account.address])}
                     </section>
                 ))}
-            </div>
+                </div>
+                <div
+                    className="zklogin-overlay__resize-handle"
+                    data-resize-handle="true"
+                    onPointerDown={handleResizePointerDown}
+                    role="presentation"
+                    title="드래그해서 창 크기를 조절하세요"
+                >
+                    <span className="zklogin-overlay__resize-grip" />
+                </div>
+            </>
             )}
         </div>
     );
