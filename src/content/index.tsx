@@ -1,14 +1,12 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
 import './styles/content.less';
-import { initChannelPointsWidget } from './channelPointsWidget';
-import { initGlobalStatusWidget } from './globalStatusWidget';
 import { getOverlayPosition, OVERLAY_POSITION_KEY, type OverlayPosition } from '../shared/storage';
 
 const MOUNT_ID = 'twitch-zklogin-wallet-root';
 
 function mountOverlay() {
-    if (!/(^|\.)twitch\.tv$/i.test(window.location.hostname)) {
+    if (!/^www\.twitch\.tv$/i.test(window.location.hostname)) {
         return;
     }
 
@@ -28,8 +26,6 @@ function mountOverlay() {
 
 function bootstrap() {
     mountOverlay();
-    initChannelPointsWidget();
-    initGlobalStatusWidget();
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'sync' && changes[OVERLAY_POSITION_KEY]) {
             const container = document.getElementById(MOUNT_ID) as HTMLDivElement | null;

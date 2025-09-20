@@ -9,6 +9,7 @@ export type MessageRequest =
     | { type: 'SAVE_CONFIG'; config: ExtensionConfig }
     | { type: 'GET_CONFIG' }
     | { type: 'SET_OVERLAY_ENABLED'; enabled: boolean }
+    | { type: 'SIGN_PERSONAL_MESSAGE'; address: string; messageBase64: string }
     | {
         type: 'UPLOAD_NFT_IMAGE';
         address: string;
@@ -47,6 +48,8 @@ export type MessageResponse =
     | ErrorResponse<'GET_CONFIG'>
     | SuccessResponse<'SET_OVERLAY_ENABLED', { enabled: boolean }>
     | ErrorResponse<'SET_OVERLAY_ENABLED'>
+    | SuccessResponse<'SIGN_PERSONAL_MESSAGE', { signature: string }>
+    | ErrorResponse<'SIGN_PERSONAL_MESSAGE'>
     | SuccessResponse<'UPLOAD_NFT_IMAGE', { status: 'ok'; message?: string; result?: unknown }>
     | ErrorResponse<'UPLOAD_NFT_IMAGE'>;
 
