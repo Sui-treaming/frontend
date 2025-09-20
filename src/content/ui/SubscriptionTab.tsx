@@ -275,7 +275,12 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
         }
         setSecretState(prev => ({ ...prev, uploading: true, error: undefined, success: undefined }));
         try {
-            const fileBuffer = await secretState.file.arrayBuffer();
+            const fileBytes = new Uint8Array(await secretState.file.arrayBuffer());
+            const encryptedPayload = packSecretPayload(fileBytes, {
+                mimeType: secretState.file.type || 'application/octet-stream',
+                fileName: sanitizeFileName(secretState.file.name),
+                size: fileBytes.length,
+            });
             const baseBytes = fromHex(selectedService.id);
             const nonce = crypto.getRandomValues(new Uint8Array(5));
             const combined = new Uint8Array(baseBytes.length + nonce.length);
@@ -287,7 +292,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 threshold: 2,
                 packageId,
                 id: walrusObjectId,
-                data: new Uint8Array(fileBuffer),
+                data: encryptedPayload,
             });
 
             const uploadResponse = await fetch(
@@ -300,8 +305,8 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
             if (!uploadResponse.ok) {
                 throw new Error(`Walrus publisher responded with HTTP ${uploadResponse.status}`);
             }
-            const payload = await uploadResponse.json();
-            const info = mapWalrusInfo(payload, walrusService.aggregatorUrl);
+            const responsePayload = await uploadResponse.json();
+            const info = mapWalrusInfo(responsePayload, walrusService.aggregatorUrl);
             setSecretState(prev => ({
                 ...prev,
                 uploading: false,
@@ -483,7 +488,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
             }
             await sessionKey.setPersonalMessageSignature(signatureResponse.data.signature);
 
-            const urls = await downloadAndDecrypt({
+            const files = await downloadAndDecrypt({
                 blobIds: service.blobIds,
                 sessionKey,
                 suiClient,
@@ -492,7 +497,10 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 subscriptionId: service.subscriptionId,
                 packageId,
             });
-            setFollowerState(prev => ({ ...prev, decrypting: false, decryptedUrls: urls }));
+            setFollowerState(prev => {
+                cleanupDecryptedFiles(prev.decryptedFiles);
+                return { ...prev, decrypting: false, decryptedFiles: files };
+            });
         } catch (error) {
             console.warn('[subscription] decrypt failed', error);
             setFollowerState(prev => ({
@@ -734,10 +742,27 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                         </div>
                     )}
 
-                    {followerState.decryptedUrls.length > 0 && (
+                    {followerState.decryptedFiles.length > 0 && (
                         <div className="zklogin-secret-gallery">
-                            {followerState.decryptedUrls.map((url, index) => (
-                                <img key={url} src={url} alt={`Decrypted secret ${index + 1}`} />
+                            {followerState.decryptedFiles.map((file, index) => (
+                                <figure key={file.url} className="zklogin-secret-gallery__item">
+                                    {file.mimeType.startsWith('image/') ? (
+                                        <img src={file.url} alt={`Decrypted secret ${index + 1}`} />
+                                    ) : (
+                                        <div className="zklogin-secret-gallery__placeholder">
+                                            <span>File {index + 1}</span>
+                                        </div>
+                                    )}
+                                    <figcaption>
+                                        <a
+                                            href={file.url}
+                                            download={file.fileName || `secret-${index + 1}${guessExtension(file.mimeType)}`}
+                                        >
+                                            {file.fileName || `Decrypted secret ${index + 1}`}
+                                        </a>
+                                        <span className="zklogin-secret-gallery__size">{formatBytes(file.size)}</span>
+                                    </figcaption>
+                                </figure>
                             ))}
                         </div>
                     )}
@@ -832,25 +857,25 @@ async function downloadAndDecrypt(params: {
     serviceId: string;
     subscriptionId: string;
     packageId: string;
-}): Promise<string[]> {
+}): Promise<DecryptedFile[]> {
     const { blobIds, sessionKey, suiClient, sealClient, serviceId, subscriptionId, packageId } = params;
     const aggregatorUrls = DEFAULT_WALRUS_SERVICES.map(item => `${item.aggregatorUrl.replace(/\/$/, '')}/v1/blobs/`);
 
-    const downloaded: ArrayBuffer[] = [];
+    const downloaded: Array<{ blobId: string; bytes: Uint8Array }> = [];
     for (const blobId of blobIds) {
         const aggregator = aggregatorUrls[Math.floor(Math.random() * aggregatorUrls.length)] ?? aggregatorUrls[0];
         try {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
+            const timeout = setTimeout(() => controller.abort(), 10_000);
             const response = await fetch(`${aggregator}${blobId}`, { signal: controller.signal });
             clearTimeout(timeout);
             if (!response.ok) {
                 continue;
             }
             const buffer = await response.arrayBuffer();
-            downloaded.push(buffer);
+            downloaded.push({ blobId, bytes: new Uint8Array(buffer) });
         } catch (error) {
-            console.warn('[subscription] failed to download blob', { blobId, error });
+            console.warn('[subscription] failed to download blob', { blobId, error: String(error) });
         }
     }
 
@@ -858,7 +883,6 @@ async function downloadAndDecrypt(params: {
         throw new Error('Failed to download encrypted files from Walrus. Try again.');
     }
 
-    const decryptedUrls: string[] = [];
     const moveCall = (tx: Transaction, id: string) => {
         tx.moveCall({
             target: `${packageId}::${MODULE_NAME}::seal_approve`,
@@ -874,7 +898,7 @@ async function downloadAndDecrypt(params: {
     // Fetch keys in batches
     for (let index = 0; index < downloaded.length; index += 10) {
         const batch = downloaded.slice(index, index + 10);
-        const ids = batch.map(buffer => EncryptedObject.parse(new Uint8Array(buffer)).id);
+        const ids = batch.map(item => EncryptedObject.parse(item.bytes).id);
         const tx = new Transaction();
         ids.forEach(id => moveCall(tx, id));
         const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
@@ -888,19 +912,31 @@ async function downloadAndDecrypt(params: {
         }
     }
 
+    const decryptedFiles: DecryptedFile[] = [];
     for (const encrypted of downloaded) {
-        const fullId = EncryptedObject.parse(new Uint8Array(encrypted)).id;
+        const fullId = EncryptedObject.parse(encrypted.bytes).id;
         const tx = new Transaction();
         moveCall(tx, fullId);
         const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
         try {
             const decrypted = await sealClient.decrypt({
-                data: new Uint8Array(encrypted),
+                data: encrypted.bytes,
                 sessionKey,
                 txBytes,
             });
-            const blob = new Blob([decrypted], { type: 'image/png' });
-            decryptedUrls.push(URL.createObjectURL(blob));
+            const { bytes, metadata } = unpackSecretPayload(decrypted);
+            const detectedMime = detectMimeType(bytes);
+            const mimeType = typeof metadata.mimeType === 'string' && metadata.mimeType
+                ? metadata.mimeType
+                : detectedMime ?? 'image/png';
+            const fileName = sanitizeFileName(metadata.fileName);
+            const blob = new Blob([bytes], { type: mimeType });
+            decryptedFiles.push({
+                url: URL.createObjectURL(blob),
+                fileName,
+                mimeType,
+                size: bytes.byteLength,
+            });
         } catch (error) {
             if (error instanceof NoAccessError) {
                 throw new Error('No access to decryption keys.');
@@ -909,7 +945,7 @@ async function downloadAndDecrypt(params: {
         }
     }
 
-    return decryptedUrls;
+    return decryptedFiles;
 }
 
 function mapWalrusInfo(payload: any, aggregatorUrl: string): SecretUploadInfo {
@@ -936,4 +972,122 @@ function mapWalrusInfo(payload: any, aggregatorUrl: string): SecretUploadInfo {
         };
     }
     throw new Error('Unexpected Walrus response format.');
+}
+
+interface SecretMetadata {
+    mimeType?: string;
+    fileName?: string;
+    size?: number;
+}
+
+function packSecretPayload(bytes: Uint8Array, metadata: SecretMetadata): Uint8Array {
+    const metaObject: SecretMetadata = {
+        ...metadata,
+        size: metadata.size ?? bytes.byteLength,
+    };
+    let metaBytes: Uint8Array;
+    try {
+        metaBytes = new TextEncoder().encode(JSON.stringify(metaObject));
+    } catch (error) {
+        console.warn('[subscription] Failed to encode secret metadata', error);
+        metaBytes = new Uint8Array(0);
+    }
+    const total = new Uint8Array(4 + metaBytes.length + bytes.length);
+    new DataView(total.buffer).setUint32(0, metaBytes.length, true);
+    total.set(metaBytes, 4);
+    total.set(bytes, 4 + metaBytes.length);
+    return total;
+}
+
+function unpackSecretPayload(payload: Uint8Array): { bytes: Uint8Array; metadata: SecretMetadata } {
+    if (payload.byteLength < 4) {
+        return { bytes: payload, metadata: {} };
+    }
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    const metaLength = view.getUint32(0, true);
+    if (metaLength < 0 || metaLength > payload.byteLength - 4 || metaLength > 16_384) {
+        return { bytes: payload.slice(), metadata: {} };
+    }
+    const metaBytes = payload.slice(4, 4 + metaLength);
+    let metadata: SecretMetadata = {};
+    try {
+        metadata = JSON.parse(new TextDecoder().decode(metaBytes)) as SecretMetadata;
+    } catch (error) {
+        console.warn('[subscription] Failed to parse secret metadata', error);
+        metadata = {};
+    }
+    const dataBytes = payload.slice(4 + metaLength);
+    return { bytes: dataBytes, metadata };
+}
+
+function sanitizeFileName(name: string | undefined): string {
+    if (!name) {
+        return '';
+    }
+    return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 96);
+}
+
+function guessExtension(mimeType: string): string {
+    const lookup: Record<string, string> = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+    };
+    if (lookup[mimeType]) {
+        return lookup[mimeType];
+    }
+    if (mimeType.startsWith('image/')) {
+        return `.${mimeType.split('/')[1] ?? 'img'}`;
+    }
+    return '';
+}
+
+function formatBytes(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 B';
+    }
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    const decimals = value >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${value.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function cleanupDecryptedFiles(files: DecryptedFile[]): void {
+    files.forEach(file => {
+        try {
+            URL.revokeObjectURL(file.url);
+        } catch (error) {
+            console.warn('[subscription] Failed to revoke object URL', error);
+        }
+    });
+}
+
+function detectMimeType(bytes: Uint8Array): string | null {
+    if (bytes.length < 4) {
+        return null;
+    }
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return 'image/png';
+    }
+    if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+        return 'image/jpeg';
+    }
+    if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+        return 'image/gif';
+    }
+    if (
+        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes.length >= 12 &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+    ) {
+        return 'image/webp';
+    }
+    return null;
 }
