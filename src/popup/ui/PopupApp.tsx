@@ -4,7 +4,7 @@ import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../../content/api/runtime';
 import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 
-const NETWORK: NetworkName = 'Testnet';
+const NETWORK: NetworkName = 'testnet';
 
 type OverviewStatus = {
     data?: AccountOverviewPayload;
