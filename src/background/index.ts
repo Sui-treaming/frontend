@@ -716,7 +716,58 @@ function sessionToPublicData(session: AccountSession): AccountPublicData {
 
 async function launchWebAuthFlow(url: string): Promise<string> {
     return await new Promise((resolve, reject) => {
+        const desiredWidth = 520;
+        const desiredHeight = 720;
+        let resized = false;
+
+        const handleWindowCreated = (window: chrome.windows.Window) => {
+            if (resized) {
+                return;
+            }
+            if (!window.id) {
+                return;
+            }
+            if (window.type !== 'popup' && window.type !== 'normal') {
+                return;
+            }
+            resized = true;
+            const finalizeUpdate = (reference: chrome.windows.Window | null) => {
+                const base = reference ?? window;
+                const baseLeft = base.left ?? 0;
+                const baseTop = base.top ?? 0;
+                const baseWidth = base.width ?? desiredWidth;
+                const baseHeight = base.height ?? desiredHeight;
+                const centeredLeft = Math.max(0, Math.round(baseLeft + (baseWidth - desiredWidth) / 2));
+                const centeredTop = Math.max(0, Math.round(baseTop + (baseHeight - desiredHeight) / 2));
+                chrome.windows.update(window.id!, {
+                    width: desiredWidth,
+                    height: desiredHeight,
+                    left: centeredLeft,
+                    top: centeredTop,
+                    state: 'normal',
+                    focused: true,
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.warn('[background] Failed to resize Twitch auth window', chrome.runtime.lastError.message);
+                    }
+                });
+            };
+
+            chrome.windows.getLastFocused(focusedWindow => {
+                if (chrome.runtime.lastError) {
+                    finalizeUpdate(null);
+                    return;
+                }
+                finalizeUpdate(focusedWindow ?? null);
+            });
+
+            chrome.windows.onCreated.removeListener(handleWindowCreated);
+        };
+
+        chrome.windows.onCreated.addListener(handleWindowCreated);
+
         chrome.identity.launchWebAuthFlow({ url, interactive: true }, redirectUrl => {
+            chrome.windows.onCreated.removeListener(handleWindowCreated);
             if (chrome.runtime.lastError) {
                 reject(new Error(chrome.runtime.lastError.message));
                 return;

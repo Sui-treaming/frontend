@@ -3,7 +3,7 @@ import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../api/runtime';
 import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/storage';
-import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
+import { makeSuiscanUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 import { initWidgetScale } from '../responsive';
 import { SubscriptionTab } from './SubscriptionTab';
 import type { NftUploadState } from './types';
@@ -533,6 +533,7 @@ export function App(): ReactElement | null {
         () => [...accounts].sort((a, b) => b.createdAt - a.createdAt),
         [accounts],
     );
+    const hasAccounts = sortedAccounts.length > 0;
 
     const handleOpacityValueChange = useCallback((value: number) => {
         const normalized = Math.min(1, Math.max(0.4, value));
@@ -679,15 +680,18 @@ export function App(): ReactElement | null {
     }, [clampHeight, clampWidth, collapsed]);
 
     const overlayStyle = useMemo(() => {
+        const showCompactLogin = !collapsed && !hasAccounts;
         const width = `${overlaySize.width}px`;
         if (collapsed) {
             return { width };
         }
+        const loginHeight = Math.round(Math.max(overlaySize.height / 2, MIN_OVERLAY_HEIGHT / 2));
+        const heightValue = showCompactLogin ? loginHeight : overlaySize.height;
         return {
             width,
-            height: `${overlaySize.height}px`,
+            height: `${heightValue}px`,
         };
-    }, [collapsed, overlaySize.height, overlaySize.width]);
+    }, [collapsed, hasAccounts, overlaySize.height, overlaySize.width]);
 
     if (!overlayEnabled) {
         return (
@@ -775,7 +779,7 @@ export function App(): ReactElement | null {
                 <div className="zklogin-overlay__body">
                 {error && <div className="zklogin-alert zklogin-alert--error">{error}</div>}
 
-                {sortedAccounts.length === 0 && (
+                {!hasAccounts && (
                     <div className="zklogin-empty">
                         <p>Connect with your Twitch account to bootstrap a zkLogin wallet.</p>
                         <button
@@ -788,7 +792,7 @@ export function App(): ReactElement | null {
                     </div>
                 )}
 
-                {sortedAccounts.length > 0 && (
+                {hasAccounts && (
                     <div className="zklogin-actions">
                         <button
                             className="zklogin-btn zklogin-btn--primary"
@@ -819,7 +823,7 @@ export function App(): ReactElement | null {
                                         )}
                                     </div>
                                     <a
-                                        href={makePolymediaUrl(NETWORK, 'address', account.address)}
+                                        href={makeSuiscanUrl(NETWORK, 'address', account.address)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                     >
@@ -831,7 +835,7 @@ export function App(): ReactElement | null {
                                     <span>aud: {account.aud}</span>
                                 </div>
                             </div>
-                            <div>
+                            <div className="zklogin-card__actions">
                                 <button
                                     className="zklogin-btn"
                                     onClick={() => { void loadOverview(account.address); }}
@@ -995,7 +999,7 @@ export function App(): ReactElement | null {
                         {(data?.recentTransactions ?? []).map(tx => (
                             <li key={tx.digest}>
                                 <a
-                                    href={makePolymediaUrl(NETWORK, 'tx', tx.digest)}
+                                    href={makeSuiscanUrl(NETWORK, 'tx', tx.digest)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

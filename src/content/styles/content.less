@@ -6,11 +6,13 @@
 :root {
     --zklogin-widget-scale: 1.03;
     --zklogin-overlay-opacity: 0.92;
+    --zklogin-font-offset: 5px;
 }
 
 #twitch-zklogin-wallet-root {
     all: initial;
     font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 10px;
     position: fixed;
     /* 위치는 JS에서 설정(getOverlayPosition) */
     z-index: 2147483647;
@@ -22,7 +24,7 @@
 }
 
 .zklogin-overlay {
-    font-size: calc(1rem * var(--zklogin-widget-scale, 1));
+    font-size: calc(0.6rem * var(--zklogin-widget-scale, 1));
 
     min-width: 320px;
     max-width: 760px;
@@ -65,12 +67,12 @@
 
 .zklogin-overlay__title {
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: calc(0.80rem + var(--zklogin-font-offset));
     display: block;
 }
 
 .zklogin-overlay__subtitle {
-    font-size: 0.75rem;
+    font-size: calc(0.60rem + var(--zklogin-font-offset));
     color: #cbd5f5;
     display: block;
 }
@@ -86,7 +88,7 @@
     border-radius: 8px;
     color: #e2e8f0;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: calc(0.6rem + var(--zklogin-font-offset));
     padding: 6px 8px;
     transition: background 0.2s ease;
     &:hover {
@@ -161,7 +163,7 @@
 .zklogin-alert {
     border-radius: 10px;
     padding: 10px 12px;
-    font-size: 0.85rem;
+    font-size: calc(0.5rem + var(--zklogin-font-offset));
     line-height: 1.4;
 }
 
@@ -183,8 +185,13 @@
     gap: 12px;
     align-items: stretch;
     text-align: left;
-    font-size: 0.95rem;
+    font-size: calc(0.7rem + var(--zklogin-font-offset));
     line-height: 1.5;
+}
+
+.zklogin-empty .zklogin-btn--primary {
+    font-size: calc(0.8rem + var(--zklogin-font-offset));
+    padding: 12px 20px;
 }
 
 .zklogin-btn {
@@ -193,7 +200,7 @@
     border: 1px solid rgba(148, 163, 184, 0.45);
     border-radius: 12px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: calc(0.6rem + var(--zklogin-font-offset));
     padding: 9px 14px;
     cursor: pointer;
     transition: background 0.2s ease, border-color 0.2s ease;
@@ -249,16 +256,25 @@
     display: flex;
     flex-direction: column;
     gap: 0.4em;
-    font-size: 0.85rem;
+    font-size: calc(0.5rem + var(--zklogin-font-offset));
+}
+
+.zklogin-card__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
 }
 
 .zklogin-card__address {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    overflow-wrap: anywhere;
     a {
         color: #a5b4fc;
-        font-size: 0.78em;
+        font-size: calc(0.3em + var(--zklogin-font-offset));
+        overflow-wrap: anywhere;
         text-decoration: none;
         &:hover {
             text-decoration: underline;
@@ -270,12 +286,13 @@
     display: inline-flex;
     align-items: center;
     gap: 14px; /* 주소와 복사 버튼 사이 간격 확대 */
+    overflow-wrap: anywhere;
 }
 
 .zklogin-copy-button {
     /* 기본 아이콘 버튼 스타일을 덮어써서 더 작게 보이도록 조정 */
     padding: 0 4px !important;
-    font-size: 0.68em;
+    font-size: calc(0.5em + var(--zklogin-font-offset));
     line-height: 1;
     height: 20px;
     min-height: 20px;
@@ -289,7 +306,7 @@
 }
 
 .zklogin-copy-hint {
-    font-size: 0.72em;
+    font-size: calc(0.72em + var(--zklogin-font-offset));
     color: #a5b4fc;
     opacity: 0;
     animation: zkloginFadeHint 1.2s ease forwards;
@@ -307,7 +324,8 @@
     flex-wrap: wrap;
     gap: 8px;
     color: #cbd5f5;
-    font-size: 0.74em;
+    font-size: calc(0.5em + var(--zklogin-font-offset));
+    overflow-wrap: anywhere;
 }
 
 .zklogin-badge {
@@ -317,7 +335,7 @@
     color: #e9d5ff;
     border-radius: 999px;
     padding: 0.25em 0.65em;
-    font-size: 0.7rem;
+    font-size: calc(0.7rem + var(--zklogin-font-offset));
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -334,7 +352,7 @@
     border: none;
     border-radius: 999px;
     padding: 6px 12px;
-    font-size: 0.74rem;
+    font-size: calc(0.6rem + var(--zklogin-font-offset));
     cursor: pointer;
     background: rgba(148, 163, 184, 0.12);
     color: #e2e8f0;
@@ -359,12 +377,12 @@
 
 .zklogin-section h4 {
     margin: 0;
-    font-size: 0.9em;
+    font-size: calc(0.6em + var(--zklogin-font-offset));
 }
 
 .zklogin-section p {
     margin: 0;
-    font-size: 0.82rem;
+    font-size: calc(0.4rem + var(--zklogin-font-offset));
     color: #cbd5f5;
 }
 
@@ -385,14 +403,14 @@
         gap: 0.4em;
     }
     label {
-        font-size: 0.74em;
+        font-size: calc(0.74em + var(--zklogin-font-offset));
         color: #cbd5f5;
     }
     strong {
-        font-size: 1rem;
+        font-size: calc(1rem + var(--zklogin-font-offset));
     }
     time, span {
-        font-size: 0.78em;
+        font-size: calc(0.78em + var(--zklogin-font-offset));
     }
 }
 
@@ -403,7 +421,16 @@
     display: flex;
     flex-direction: column;
     gap: 0.4em;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem + var(--zklogin-font-offset));
+    overflow-wrap: anywhere;
+}
+
+.zklogin-list li,
+.zklogin-list a,
+.zklogin-section span,
+.zklogin-section p,
+.zklogin-section code {
+    overflow-wrap: anywhere;
 }
 
 .zklogin-muted {
@@ -421,7 +448,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.4em;
-    font-size: 0.78em;
+    font-size: calc(0.48em + var(--zklogin-font-offset));
     color: #cbd5f5;
 }
 
@@ -432,7 +459,7 @@
     border-radius: 10px;
     padding: 8px 10px;
     color: #f8fafc;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem + var(--zklogin-font-offset));
     &:focus {
         outline: 2px solid @accent;
         outline-offset: 1px;
@@ -446,13 +473,13 @@
 
 .zklogin-cover-upload {
     display: flex;
+    flex-direction: column;
     gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
+    align-items: stretch;
 }
 
 .zklogin-cover-upload__field {
-    flex: 1 1 220px;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -465,8 +492,12 @@
     }
 }
 
+.zklogin-cover-upload .zklogin-btn {
+    width: 100%;
+}
+
 .zklogin-cover-upload__hint {
-    font-size: 0.75rem;
+    font-size: calc(0.75rem + var(--zklogin-font-offset));
     color: rgba(226, 232, 240, 0.6);
 }
 
@@ -480,7 +511,7 @@
 
 .zklogin-card__footer {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: calc(0.75rem + var(--zklogin-font-offset));
     color: rgba(226, 232, 240, 0.65);
 }
 
@@ -495,7 +526,7 @@
     border-radius: 12px;
     padding: 12px 16px;
     max-width: 260px;
-    font-size: 0.82rem;
+    font-size: calc(0.82rem + var(--zklogin-font-offset));
 }
 
 .zklogin-overlay-disabled .zklogin-btn {
@@ -513,7 +544,7 @@
     border: none;
     border-radius: 999px;
     padding: 6px 14px;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem + var(--zklogin-font-offset));
     cursor: pointer;
     background: rgba(148, 163, 184, 0.18);
     color: #e2e8f0;
@@ -572,14 +603,14 @@
     display: flex;
     flex-direction: column;
     gap: 0.6em;
-    font-size: 0.82rem;
+    font-size: calc(0.82rem + var(--zklogin-font-offset));
 }
 
 .zklogin-service-detail code {
     background: rgba(15, 23, 42, 0.7);
     padding: 2px 6px;
     border-radius: 6px;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem + var(--zklogin-font-offset));
 }
 
 .zklogin-walrus-info {
@@ -590,7 +621,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem + var(--zklogin-font-offset));
 }
 
 .zklogin-walrus-info a {
@@ -652,7 +683,7 @@
     background: rgba(79, 70, 229, 0.18);
     border-radius: 999px;
     padding: 0.25em 0.65em;
-    font-size: 0.82em;
+    font-size: calc(0.82em + var(--zklogin-font-offset));
     font-weight: 600;
     color: #ede9fe;
 }
@@ -674,7 +705,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.2em;
-    font-size: 0.74em;
+    font-size: calc(0.74em + var(--zklogin-font-offset));
 }
 
 .zklogin-channel-widget__status-label {
@@ -688,7 +719,7 @@
 
 .zklogin-channel-widget__status-wallet {
     color: rgba(148, 163, 184, 0.8);
-    font-size: 0.68em;
+    font-size: calc(0.68em + var(--zklogin-font-offset));
     letter-spacing: 0.02em;
 }
 
@@ -764,7 +795,7 @@
 
 .zklogin-global-widget__title {
     font-weight: 700;
-    font-size: 0.9em;
+    font-size: calc(0.9em + var(--zklogin-font-offset));
     margin-bottom: 8px;
     color: #cbd5f5;
 }
@@ -773,7 +804,7 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    font-size: 0.78em;
+    font-size: calc(0.78em + var(--zklogin-font-offset));
     margin-bottom: 6px;
 }
 
