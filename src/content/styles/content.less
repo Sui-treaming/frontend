@@ -373,22 +373,27 @@
 }
 
 .zklogin-nft-badge {
-    background: rgba(148, 163, 184, 0.15);
-    color: #e2e8f0;
-    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(239, 68, 68, 0.16); /* red */
+    color: #fecaca;
+    border: 1px solid rgba(239, 68, 68, 0.55);
     border-radius: 999px;
     padding: 4px 10px;
     font-size: calc(0.6rem + var(--zklogin-font-offset));
 }
+.zklogin-nft-badge--active {
+    background: rgba(239, 68, 68, 0.26); /* deeper red */
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.75);
+}
 .zklogin-nft-badge--pulse {
     animation: zklogin-pulse 1.6s ease-in-out 2;
-    border-color: rgba(148, 163, 184, 0.8);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
 }
 
 @keyframes zklogin-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(148, 163, 184, 0.6); }
-    70% { box-shadow: 0 0 0 10px rgba(148, 163, 184, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(148, 163, 184, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 .zklogin-viewer-summary {

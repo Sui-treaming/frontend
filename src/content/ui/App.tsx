@@ -155,6 +155,22 @@ export function App(): ReactElement | null {
         };
     }, [clampHeight, clampWidth]);
 
+    // Auto-poll overviews periodically so user doesn't need to press a button
+    useEffect(() => {
+        if (accounts.length === 0) {
+            return;
+        }
+        const intervalId = window.setInterval(() => {
+            accounts.forEach(account => {
+                const state = overviews[account.address];
+                if (!state || !state.loading) {
+                    void loadOverview(account.address);
+                }
+            });
+        }, 10_000); // 10s
+        return () => { window.clearInterval(intervalId); };
+    }, [accounts, overviews]);
+
     // Detect newly arrived NFTs and flash a badge in viewer mode
     useEffect(() => {
         Object.values(accounts).forEach(account => {
@@ -986,6 +1002,8 @@ export function App(): ReactElement | null {
                     const isLoadingOverview = overviewState?.loading ?? false;
                     const suiValue = overviewState?.data?.suiBalance ?? 0;
                     const suiDisplay = isLoadingOverview ? 'Loading…' : `${formatNumber(suiValue)} SUI`;
+                    const nftCount = overviewState?.data?.nfts?.length ?? 0;
+                    const hasNfts = nftCount > 0;
 
                     return (
                         <div key={account.address} className="zklogin-compact-header">
@@ -995,8 +1013,8 @@ export function App(): ReactElement | null {
                                 <div className="zklogin-compact-balance">{suiDisplay}</div>
                             </div>
                             <div className="zklogin-compact-actions">
-                                <span className={`zklogin-nft-badge ${nftArrived[account.address] ? 'zklogin-nft-badge--pulse' : ''}`}>
-                                    {(overviewState?.data?.nfts?.length ?? 0)} mints
+                                <span className={`zklogin-nft-badge ${hasNfts ? 'zklogin-nft-badge--active' : ''} ${nftArrived[account.address] ? 'zklogin-nft-badge--pulse' : ''}`}>
+                                    {nftCount} mints
                                 </span>
                                 <button
                                     className="zklogin-btn zklogin-btn--primary"
