@@ -12,7 +12,7 @@ import type { NftUploadState } from './types';
 const NETWORK: NetworkName = 'testnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB limit to avoid oversized images
+const MAX_UPLOAD_BYTES = 900_000; // ~0.9 MB to stay within backend upload limits
 
 type ViewMode = 'streamer' | 'viewer';
 
@@ -81,6 +81,8 @@ export function App(): ReactElement | null {
     const [uploadStates, setUploadStates] = useState<Record<string, NftUploadState>>({});
     const [overlaySize, setOverlaySize] = useState(() => getInitialOverlaySize());
     const [viewMode, setViewMode] = useState<ViewMode>('streamer');
+    const [viewerExpanded, setViewerExpanded] = useState<Record<string, boolean>>({});
+    const [lastStreamerSize, setLastStreamerSize] = useState<{ width: number; height: number } | null>(null);
 
 
     const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
@@ -89,6 +91,10 @@ export function App(): ReactElement | null {
 
     const overlayRef = useRef<HTMLDivElement | null>(null);
     const popoverRef = useRef<HTMLDivElement | null>(null);
+    const overlaySizeRef = useRef(overlaySize);
+    useEffect(() => { overlaySizeRef.current = overlaySize; }, [overlaySize]);
+    const lastNftCountsRef = useRef<Record<string, number>>({});
+    const [nftArrived, setNftArrived] = useState<Record<string, boolean>>({});
     const dragDataRef = useRef<{
         pointerId: number;
         offsetX: number;
@@ -148,6 +154,46 @@ export function App(): ReactElement | null {
             window.removeEventListener('orientationchange', handleResize);
         };
     }, [clampHeight, clampWidth]);
+
+    // Detect newly arrived NFTs and flash a badge in viewer mode
+    useEffect(() => {
+        Object.values(accounts).forEach(account => {
+            const address = account.address;
+            const overview = overviews[address];
+            const current = overview?.data?.nfts?.length ?? undefined;
+            if (typeof current !== 'number') {
+                return;
+            }
+            const last = lastNftCountsRef.current[address];
+            lastNftCountsRef.current[address] = current;
+            if (typeof last === 'number' && current > last) {
+                setNftArrived(prev => ({ ...prev, [address]: true }));
+                window.setTimeout(() => {
+                    setNftArrived(prev => ({ ...prev, [address]: false }));
+                }, 2500);
+            }
+        });
+        // We intentionally depend on overviews to react to data refresh
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [overviews]);
+
+    // When switching to viewer mode, shrink overlay; when returning to streamer, restore previous size
+    useEffect(() => {
+        if (viewMode === 'viewer') {
+            setLastStreamerSize(overlaySizeRef.current);
+            setOverlaySize(prev => ({
+                width: clampWidth(400),
+                height: prev.height,
+            }));
+        } else {
+            const target = lastStreamerSize ?? getInitialOverlaySize();
+            setOverlaySize({
+                width: clampWidth(target.width),
+                height: clampHeight(target.height),
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode, clampWidth, clampHeight]);
 
     useEffect(() => {
         void bootstrap();
@@ -564,8 +610,9 @@ export function App(): ReactElement | null {
             return;
         }
 
-        // 확장된 상태에서는 헤더에서만 드래그 시작 허용
-        if (!collapsed && !target?.closest('.zklogin-overlay__header')) {
+        // 확장된 상태에서는 기본적으로 헤더에서만 드래그 허용하되,
+        // 뷰어 모드(viewer)에서는 헤더가 숨겨지므로 어디서든 드래그 허용
+        if (!collapsed && viewMode !== 'viewer' && !target?.closest('.zklogin-overlay__header')) {
             return;
         }
         const overlay = overlayRef.current;
@@ -583,7 +630,7 @@ export function App(): ReactElement | null {
         overlay.classList.add('zklogin-overlay--dragging');
         overlay.setPointerCapture(event.pointerId);
         event.preventDefault();
-    }, [collapsed]);
+    }, [collapsed, viewMode]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const data = dragDataRef.current;
@@ -684,17 +731,21 @@ export function App(): ReactElement | null {
 
     const overlayStyle = useMemo(() => {
         const showCompactLogin = !collapsed && !hasAccounts;
-        const width = `${overlaySize.width}px`;
         if (collapsed) {
+            const width = `${overlaySize.width}px`;
             return { width };
         }
+        if (viewMode === 'viewer') {
+            return { width: '400px', height: '80px' };
+        }
+        const width = `${overlaySize.width}px`;
         const loginHeight = Math.round(Math.max(overlaySize.height / 2, MIN_OVERLAY_HEIGHT / 2));
         const heightValue = showCompactLogin ? loginHeight : overlaySize.height;
         return {
             width,
             height: `${heightValue}px`,
         };
-    }, [collapsed, hasAccounts, overlaySize.height, overlaySize.width]);
+    }, [collapsed, hasAccounts, overlaySize.height, overlaySize.width, viewMode]);
 
     if (!overlayEnabled) {
         return (
@@ -718,8 +769,10 @@ export function App(): ReactElement | null {
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
             data-collapsed={collapsed ? 'true' : 'false'}
+            data-view-mode={viewMode}
             style={overlayStyle}
         >
+            {viewMode !== 'viewer' && (
             <header className="zklogin-overlay__header">
                 <div>
                     <span className="zklogin-overlay__title">Twitch zkLogin Wallet</span>
@@ -727,22 +780,14 @@ export function App(): ReactElement | null {
                 </div>
                 <div className="zklogin-overlay__header-actions">
                     <button
-                        className={`zklogin-toggle-btn ${viewMode === 'viewer' ? 'zklogin-toggle-btn--active' : ''}`}
+                        className="zklogin-toggle-btn"
                         onClick={() => {
                             setViewMode(prev => (prev === 'streamer' ? 'viewer' : 'streamer'));
                         }}
                     >
-                        {viewMode === 'streamer' ? 'Viewer mode' : 'Streamer mode'}
+                        Change view
                     </button>
-                    {viewMode === 'streamer' && !collapsed && hasAccounts && (
-                        <button
-                            className="zklogin-btn zklogin-btn--primary zklogin-overlay__header-add"
-                            disabled={loading}
-                            onClick={() => { void handleLogin(); }}
-                        >
-                            {loading ? 'Connecting…' : 'Add another Twitch account'}
-                        </button>
-                    )}
+                    {viewMode === 'streamer' && !collapsed && hasAccounts}
                     <div className="zklogin-overlay__opacity">
                         <button
                             className="zklogin-icon-button"
@@ -788,11 +833,14 @@ export function App(): ReactElement | null {
                     >{collapsed ? '+' : '−'}</button>
                 </div>
             </header>
+            )}
 
             {!collapsed && (
             <>
                 <div className="zklogin-overlay__body">
                 {error && <div className="zklogin-alert zklogin-alert--error">{error}</div>}
+
+                {viewMode === 'streamer' && hasAccounts}
 
                 {viewMode === 'viewer'
                     ? renderViewerCards()
@@ -842,7 +890,7 @@ export function App(): ReactElement | null {
                                                 <span>aud: {account.aud}</span>
                                             </div>
                                         </div>
-                                        <div className="zklogin-card__actions">
+                                        <div className="zklogin-card__actions zklogin-card__actions--streamer">
                                             <button
                                                 className="zklogin-btn"
                                                 onClick={() => { void loadOverview(account.address); }}
@@ -936,53 +984,27 @@ export function App(): ReactElement | null {
                 {sortedAccounts.map(account => {
                     const overviewState = overviews[account.address];
                     const isLoadingOverview = overviewState?.loading ?? false;
-                    const suiDisplay = isLoadingOverview
-                        ? 'Loading…'
-                        : `${formatNumber(overviewState?.data?.suiBalance ?? 0)} SUI`;
-                    const rewardDisplay = isLoadingOverview
-                        ? 'Loading…'
-                        : `${overviewState?.data?.nfts.length ?? 0} rewards`;
+                    const suiValue = overviewState?.data?.suiBalance ?? 0;
+                    const suiDisplay = isLoadingOverview ? 'Loading…' : `${formatNumber(suiValue)} SUI`;
 
                     return (
-                        <section key={account.address} className="zklogin-viewer-card">
-                            <header className="zklogin-viewer-card__header">
-                                <div>
-                                    <span className="zklogin-viewer-card__title">Twitch zkLogin Wallet</span>
-                                    <span className="zklogin-viewer-card__subtitle">{shortenAddress(account.address)}</span>
-                                </div>
-                                <div className="zklogin-viewer-card__header-actions">
-                                    <button
-                                        className="zklogin-icon-button"
-                                        title="Refresh balance"
-                                        onClick={() => { void loadOverview(account.address); }}
-                                    >↻</button>
-                                    <button
-                                        className="zklogin-icon-button"
-                                        title="Copy address"
-                                        onClick={() => { void copyToClipboard(account.address); }}
-                                    >📋</button>
-                                </div>
-                            </header>
-                            <div className="zklogin-viewer-card__metrics">
-                                <div>
-                                    <label>SUI balance</label>
-                                    <strong>{suiDisplay}</strong>
-                                </div>
-                                <div>
-                                    <label>Rewards</label>
-                                    <strong>{rewardDisplay}</strong>
-                                </div>
+                        <div key={account.address} className="zklogin-compact-header">
+                            <div className="zklogin-compact-info">
+                                <div className="zklogin-compact-title">Twitch zkLogin Wallet</div>
+                                <div className="zklogin-compact-sub">{shortenAddress(account.address)}</div>
+                                <div className="zklogin-compact-balance">{suiDisplay}</div>
                             </div>
-                            <footer className="zklogin-viewer-card__footer">
-                                <a
-                                    href={makeSuiscanUrl(NETWORK, 'address', account.address)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    View explorer ↗
-                                </a>
-                            </footer>
-                        </section>
+                            <div className="zklogin-compact-actions">
+                                <span className={`zklogin-nft-badge ${nftArrived[account.address] ? 'zklogin-nft-badge--pulse' : ''}`}>
+                                    {(overviewState?.data?.nfts?.length ?? 0)} mints
+                                </span>
+                                <button
+                                    className="zklogin-btn zklogin-btn--primary"
+                                    onClick={() => { setViewMode('streamer'); }}
+                                    type="button"
+                                >Change stream</button>
+                            </div>
+                        </div>
                     );
                 })}
             </div>
