@@ -14,6 +14,8 @@ const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB limit to avoid oversized images
 
+type ViewMode = 'streamer' | 'viewer';
+
 
 type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions' | 'subscription';
 
@@ -30,7 +32,7 @@ function getInitialOverlaySize(): { width: number; height: number } {
     const height = Math.min(
         Math.max(MIN_OVERLAY_HEIGHT, preferredHeight),
         Math.max(MIN_OVERLAY_HEIGHT, Math.min(MAX_OVERLAY_HEIGHT, window.innerHeight - 60)),
-    ) - 70;
+    ) - 155;
     const width = Math.min(
         Math.max(MIN_OVERLAY_WIDTH, 420),
         Math.max(MIN_OVERLAY_WIDTH, Math.min(MAX_OVERLAY_WIDTH, window.innerWidth - 40)),
@@ -78,6 +80,7 @@ export function App(): ReactElement | null {
     const [overlayOpacity, setOverlayOpacity] = useState(0.92);
     const [uploadStates, setUploadStates] = useState<Record<string, NftUploadState>>({});
     const [overlaySize, setOverlaySize] = useState(() => getInitialOverlaySize());
+    const [viewMode, setViewMode] = useState<ViewMode>('streamer');
 
 
     const [opacityPopoverOpen, setOpacityPopoverOpen] = useState(false);
@@ -723,6 +726,23 @@ export function App(): ReactElement | null {
                     <span className="zklogin-overlay__subtitle">Sui Testnet</span>
                 </div>
                 <div className="zklogin-overlay__header-actions">
+                    <button
+                        className={`zklogin-toggle-btn ${viewMode === 'viewer' ? 'zklogin-toggle-btn--active' : ''}`}
+                        onClick={() => {
+                            setViewMode(prev => (prev === 'streamer' ? 'viewer' : 'streamer'));
+                        }}
+                    >
+                        {viewMode === 'streamer' ? 'Viewer mode' : 'Streamer mode'}
+                    </button>
+                    {viewMode === 'streamer' && !collapsed && hasAccounts && (
+                        <button
+                            className="zklogin-btn zklogin-btn--primary zklogin-overlay__header-add"
+                            disabled={loading}
+                            onClick={() => { void handleLogin(); }}
+                        >
+                            {loading ? 'Connecting…' : 'Add another Twitch account'}
+                        </button>
+                    )}
                     <div className="zklogin-overlay__opacity">
                         <button
                             className="zklogin-icon-button"
@@ -763,14 +783,9 @@ export function App(): ReactElement | null {
                     </div>
                     <button
                         className="zklogin-icon-button"
-                        onClick={() => { chrome.runtime.openOptionsPage(); }}
-                        title="Open extension options"
-                    >⚙️</button>
-                    <button
-                        className="zklogin-icon-button"
                         onClick={() => { setCollapsed(prev => !prev); }}
                         title={collapsed ? 'Expand widget' : 'Collapse widget'}
-                    >{collapsed ? '🌅' : '🌊'}</button>
+                    >{collapsed ? '+' : '−'}</button>
                 </div>
             </header>
 
@@ -779,103 +794,98 @@ export function App(): ReactElement | null {
                 <div className="zklogin-overlay__body">
                 {error && <div className="zklogin-alert zklogin-alert--error">{error}</div>}
 
-                {!hasAccounts && (
-                    <div className="zklogin-empty">
-                        <p>Connect with your Twitch account to bootstrap a zkLogin wallet.</p>
-                        <button
-                            className="zklogin-btn zklogin-btn--primary"
-                            disabled={loading}
-                            onClick={() => { void handleLogin(); }}
-                        >
-                            {loading ? 'Connecting…' : 'Connect Twitch'}
-                        </button>
-                    </div>
-                )}
-
-                {hasAccounts && (
-                    <div className="zklogin-actions">
-                        <button
-                            className="zklogin-btn zklogin-btn--primary"
-                            disabled={loading}
-                            onClick={() => { void handleLogin(); }}
-                        >
-                            {loading ? 'Connecting…' : 'Add another Twitch account'}
-                        </button>
-                    </div>
-                )}
-
-                {sortedAccounts.map(account => (
-                    <section key={account.address} className="zklogin-card">
-                        <header className="zklogin-card__header">
-                            <div className="zklogin-card__identity">
-                                <span className="zklogin-badge">Twitch</span>
-                                <div className="zklogin-card__address">
-                                    <div className="zklogin-card__address-row">
-                                        <span>{shortenAddress(account.address)}</span>
-                                        <button
-                                            className="zklogin-icon-button zklogin-copy-button"
-                                            title="Copy address"
-                                            onClick={() => { void copyToClipboard(account.address); }}
-                                            type="button"
-                                        >📋</button>
-                                        {copiedFor === account.address && (
-                                            <span className="zklogin-copy-hint">복사되었습니다</span>
-                                        )}
-                                    </div>
-                                    <a
-                                        href={makeSuiscanUrl(NETWORK, 'address', account.address)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                {viewMode === 'viewer'
+                    ? renderViewerCards()
+                    : (
+                        <>
+                            {!hasAccounts && (
+                                <div className="zklogin-empty">
+                                    <p>Connect with your Twitch account to bootstrap a zkLogin wallet.</p>
+                                    <button
+                                        className="zklogin-btn zklogin-btn--primary"
+                                        disabled={loading}
+                                        onClick={() => { void handleLogin(); }}
                                     >
-                                        View explorer ↗
-                                    </a>
+                                        {loading ? 'Connecting…' : 'Connect Twitch'}
+                                    </button>
                                 </div>
-                                <div className="zklogin-card__meta">
-                                    <span>sub: {account.sub}</span>
-                                    <span>aud: {account.aud}</span>
-                                </div>
-                            </div>
-                            <div className="zklogin-card__actions">
-                                <button
-                                    className="zklogin-btn"
-                                    onClick={() => { void loadOverview(account.address); }}
-                                >
-                                    Refresh data
-                                </button>
-                                <button
-                                    className="zklogin-btn zklogin-btn--danger"
-                                    onClick={() => { void handleLogout(account.address); }}
-                                >
-                                    Disconnect
-                                </button>
-                            </div>
-                        </header>
+                            )}
 
-                        <nav className="zklogin-tabs">
-                            {DEFAULT_TABS.concat(['actions', 'subscription']).map(tab => (
-                                <button
-                                    key={tab}
-                                    className={`zklogin-tab ${ (activeTabByAccount[account.address] ?? 'overview') === tab ? 'zklogin-tab--active' : '' }`}
-                                    onClick={() => {
-                                        setActiveTabByAccount(prev => ({ ...prev, [account.address]: tab }));
-                                    }}
-                                >
-                                    {labelForTab(tab)}
-                                </button>
+                            {sortedAccounts.map(account => (
+                                <section key={account.address} className="zklogin-card">
+                                    <header className="zklogin-card__header">
+                                        <div className="zklogin-card__identity">
+                                            <span className="zklogin-badge">Twitch</span>
+                                            <div className="zklogin-card__address">
+                                                <div className="zklogin-card__address-row">
+                                                    <span>{shortenAddress(account.address)}</span>
+                                                    <button
+                                                        className="zklogin-icon-button zklogin-copy-button"
+                                                        title="Copy address"
+                                                        onClick={() => { void copyToClipboard(account.address); }}
+                                                        type="button"
+                                                    >📋</button>
+                                                    {copiedFor === account.address && (
+                                                        <span className="zklogin-copy-hint">복사되었습니다</span>
+                                                    )}
+                                                </div>
+                                                <a
+                                                    href={makeSuiscanUrl(NETWORK, 'address', account.address)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    View explorer ↗
+                                                </a>
+                                            </div>
+                                            <div className="zklogin-card__meta">
+                                                <span>sub: {account.sub}</span>
+                                                <span>aud: {account.aud}</span>
+                                            </div>
+                                        </div>
+                                        <div className="zklogin-card__actions">
+                                            <button
+                                                className="zklogin-btn"
+                                                onClick={() => { void loadOverview(account.address); }}
+                                            >
+                                                Refresh data
+                                            </button>
+                                            <button
+                                                className="zklogin-btn zklogin-btn--danger"
+                                                onClick={() => { void handleLogout(account.address); }}
+                                            >
+                                                Disconnect
+                                            </button>
+                                        </div>
+                                    </header>
+
+                                    <nav className="zklogin-tabs">
+                                        {DEFAULT_TABS.concat(['actions', 'subscription']).map(tab => (
+                                            <button
+                                                key={tab}
+                                                className={`zklogin-tab ${ (activeTabByAccount[account.address] ?? 'overview') === tab ? 'zklogin-tab--active' : '' }`}
+                                                onClick={() => {
+                                                    setActiveTabByAccount(prev => ({ ...prev, [account.address]: tab }));
+                                                }}
+                                            >
+                                                {labelForTab(tab)}
+                                            </button>
+                                        ))}
+                                    </nav>
+
+                                    {renderTabContent(
+                                        account,
+                                        overviews[account.address] ?? { loading: false },
+                                        activeTabByAccount[account.address] ?? 'overview',
+                                        transferForms[account.address] ?? INITIAL_TRANSFER_FORM,
+                                        uploadStates[account.address] ?? INITIAL_NFT_UPLOAD_STATE,
+                                    )}
+
+                                    {renderOverviewFooter(overviews[account.address])}
+                                </section>
                             ))}
-                        </nav>
-
-                        {renderTabContent(
-                            account,
-                            overviews[account.address] ?? { loading: false },
-                            activeTabByAccount[account.address] ?? 'overview',
-                            transferForms[account.address] ?? INITIAL_TRANSFER_FORM,
-                            uploadStates[account.address] ?? INITIAL_NFT_UPLOAD_STATE,
-                        )}
-
-                        {renderOverviewFooter(overviews[account.address])}
-                    </section>
-                ))}
+                        </>
+                    )
+                }
                 </div>
 
             </>
@@ -903,6 +913,80 @@ export function App(): ReactElement | null {
         } catch (err) {
             console.warn('[overlay] Failed to copy to clipboard', err);
         }
+    }
+
+    function renderViewerCards(): ReactElement {
+        if (!hasAccounts) {
+            return (
+                <div className="zklogin-empty">
+                    <p>Connect with your Twitch account to bootstrap a zkLogin wallet.</p>
+                    <button
+                        className="zklogin-btn zklogin-btn--primary"
+                        disabled={loading}
+                        onClick={() => { void handleLogin(); }}
+                    >
+                        {loading ? 'Connecting…' : 'Connect Twitch'}
+                    </button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="zklogin-viewer-grid">
+                {sortedAccounts.map(account => {
+                    const overviewState = overviews[account.address];
+                    const isLoadingOverview = overviewState?.loading ?? false;
+                    const suiDisplay = isLoadingOverview
+                        ? 'Loading…'
+                        : `${formatNumber(overviewState?.data?.suiBalance ?? 0)} SUI`;
+                    const rewardDisplay = isLoadingOverview
+                        ? 'Loading…'
+                        : `${overviewState?.data?.nfts.length ?? 0} rewards`;
+
+                    return (
+                        <section key={account.address} className="zklogin-viewer-card">
+                            <header className="zklogin-viewer-card__header">
+                                <div>
+                                    <span className="zklogin-viewer-card__title">Twitch zkLogin Wallet</span>
+                                    <span className="zklogin-viewer-card__subtitle">{shortenAddress(account.address)}</span>
+                                </div>
+                                <div className="zklogin-viewer-card__header-actions">
+                                    <button
+                                        className="zklogin-icon-button"
+                                        title="Refresh balance"
+                                        onClick={() => { void loadOverview(account.address); }}
+                                    >↻</button>
+                                    <button
+                                        className="zklogin-icon-button"
+                                        title="Copy address"
+                                        onClick={() => { void copyToClipboard(account.address); }}
+                                    >📋</button>
+                                </div>
+                            </header>
+                            <div className="zklogin-viewer-card__metrics">
+                                <div>
+                                    <label>SUI balance</label>
+                                    <strong>{suiDisplay}</strong>
+                                </div>
+                                <div>
+                                    <label>Rewards</label>
+                                    <strong>{rewardDisplay}</strong>
+                                </div>
+                            </div>
+                            <footer className="zklogin-viewer-card__footer">
+                                <a
+                                    href={makeSuiscanUrl(NETWORK, 'address', account.address)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    View explorer ↗
+                                </a>
+                            </footer>
+                        </section>
+                    );
+                })}
+            </div>
+        );
     }
 
     function renderOverviewFooter(overviewState?: OverviewState): ReactElement | null {

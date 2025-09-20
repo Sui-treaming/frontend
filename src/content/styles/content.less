@@ -78,8 +78,15 @@
 }
 
 .zklogin-overlay__header-actions {
-    display: flex;
-    gap: 4px;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.zklogin-overlay__header-add {
+    white-space: nowrap;
+    padding: 7px 16px;
 }
 
 .zklogin-icon-button {
@@ -203,11 +210,12 @@
 }
 
 .zklogin-btn--primary {
-    background: @accent;
-    border-color: lighten(@accent, 15%);
+    background: rgba(148, 163, 184, 0.25);
+    border-color: rgba(148, 163, 184, 0.45);
+    color: #f8fafc;
     &:hover:not(:disabled) {
-        background: lighten(@accent, 5%);
-        border-color: lighten(@accent, 25%);
+        background: rgba(148, 163, 184, 0.35);
+        border-color: rgba(148, 163, 184, 0.6);
     }
 }
 
@@ -217,11 +225,6 @@
     &:hover:not(:disabled) {
         background: rgba(248, 113, 113, 0.32);
     }
-}
-
-.zklogin-actions {
-    display: flex;
-    justify-content: flex-end;
 }
 
 .zklogin-card {
@@ -251,10 +254,17 @@
 .zklogin-card__actions {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     align-items: center;
     justify-content: flex-end;
+    flex: 0 0 auto;
+    margin-left: auto;
+    min-width: max-content;
+}
+
+.zklogin-card__actions .zklogin-btn {
+    flex: 0 0 auto;
 }
 
 .zklogin-card__address {
