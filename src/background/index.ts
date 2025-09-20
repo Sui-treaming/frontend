@@ -4,6 +4,7 @@ import { SuiClient } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { genAddressSeed, generateNonce, generateRandomness, getExtendedEphemeralPublicKey, getZkLoginSignature, jwtToAddress } from '@mysten/sui/zklogin';
+import { Transaction } from '@mysten/sui/transactions';
 import type { JwtPayload } from 'jwt-decode';
 import { jwtDecode } from 'jwt-decode';
 
@@ -73,12 +74,35 @@ async function handleMessage(message: MessageRequest): Promise<MessageResponse> 
             ok: true,
             data: { enabled: message.enabled },
         };
+    case 'SIGN_PERSONAL_MESSAGE':
+        return signPersonalMessage(message.address, message.messageBase64);
     case 'UPLOAD_NFT_IMAGE':
         return uploadNftImage(message);
     default: {
         const exhaustiveCheck: never = message;
         throw new Error(`Unhandled message type: ${JSON.stringify(exhaustiveCheck)}`);
     }
+    }
+}
+
+async function signPersonalMessage(address: string, messageBase64: string): Promise<MessageResponse> {
+    try {
+        const session = await getSessionOrThrow(address);
+        const keypair = Ed25519Keypair.fromSecretKey(base64ToUint8(session.ephemeralPrivateKey));
+        const messageBytes = base64ToUint8(messageBase64);
+        const signatureBytes = await keypair.sign(messageBytes);
+        return {
+            type: 'SIGN_PERSONAL_MESSAGE',
+            ok: true,
+            data: { signature: uint8ToBase64(new Uint8Array(signatureBytes)) },
+        };
+    } catch (error) {
+        console.warn('[background] signPersonalMessage failed', error);
+        return {
+            type: 'SIGN_PERSONAL_MESSAGE',
+            ok: false,
+            error: formatError(error),
+        };
     }
 }
 
@@ -177,10 +201,15 @@ async function uploadNftImage(message: Extract<MessageRequest, { type: 'UPLOAD_N
             messageText = messageText ?? (text ? text : undefined);
         }
 
+        const headersRecord: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+            headersRecord[key] = value;
+        });
+
         console.info('[background] NFT upload response', {
             status: response.status,
             ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries()),
+            headers: headersRecord,
             parsed: result,
         });
 
@@ -497,7 +526,6 @@ async function buildTransaction(sender: string, payload: SerializedTransactionRe
         if (amount <= 0n) {
             throw new Error('Transfer amount must be greater than zero.');
         }
-        const { Transaction } = await import('@mysten/sui/transactions');
         const tx = new Transaction();
         tx.setSender(sender);
         const [transferCoin] = tx.splitCoins(tx.gas, [amount]);
@@ -508,7 +536,6 @@ async function buildTransaction(sender: string, payload: SerializedTransactionRe
         if (!payload.bytes) {
             throw new Error('Custom transaction requires bytes.');
         }
-        const { Transaction } = await import('@mysten/sui/transactions');
         return Transaction.from(payload.bytes);
     }
     default:
@@ -665,7 +692,7 @@ async function resolveSalt(params: { url: string; twitchId: string; jwt: string 
         const resp = await fetch(ensureEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jwt }),
+            body: JSON.stringify({ jwt, twitchId }),
         });
         if (!resp.ok) {
             const text = await resp.text();

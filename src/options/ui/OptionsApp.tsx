@@ -163,6 +163,34 @@ export function OptionsApp(): ReactElement {
                     />
                     <span className="options__muted">스트리머가 업로드한 NFT 이미지를 수신할 POST endpoint.</span>
                 </div>
+                <div className="options__field">
+                    <label htmlFor="subscriptionPackageId">Subscription package ID</label>
+                    <input
+                        id="subscriptionPackageId"
+                        type="text"
+                        placeholder="0x..."
+                        value={config.subscriptionPackageId}
+                        onChange={event => {
+                            setStatus(initialStatus);
+                            setConfig(prev => ({ ...prev, subscriptionPackageId: event.target.value }));
+                        }}
+                    />
+                    <span className="options__muted">Seal subscription Move package published on Sui.</span>
+                </div>
+                <div className="options__field">
+                    <label htmlFor="subscriptionMvrName">Subscription MVR name</label>
+                    <input
+                        id="subscriptionMvrName"
+                        type="text"
+                        placeholder="@pkg/your-mvr-name"
+                        value={config.subscriptionMvrName}
+                        onChange={event => {
+                            setStatus(initialStatus);
+                            setConfig(prev => ({ ...prev, subscriptionMvrName: event.target.value }));
+                        }}
+                    />
+                    <span className="options__muted">Optional Move versioned reference label for Walrus policies.</span>
+                </div>
                 <button className="options__button" onClick={() => { void handleSave(); }} disabled={saving}>
                     {saving ? 'Saving…' : 'Save configuration'}
                 </button>

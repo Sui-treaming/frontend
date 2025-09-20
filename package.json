@@ -23,6 +23,7 @@
         "typecheck": "tsc -b"
     },
     "dependencies": {
+        "@mysten/seal": "^0.5.2",
         "@mysten/sui": "^1.31.0",
         "@polymedia/suitcase-core": "^0.0.57",
         "@polymedia/suitcase-react": "^0.0.57",

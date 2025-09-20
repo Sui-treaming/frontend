@@ -33,6 +33,8 @@ export interface ExtensionConfig {
     zkProverAuthToken: string;
     backendRegistrationUrl: string;
     nftUploadUrl: string;
+    subscriptionPackageId: string;
+    subscriptionMvrName: string;
 }
 
 export const TESTNET_FULLNODE = 'https://fullnode.testnet.sui.io';

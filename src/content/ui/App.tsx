@@ -5,6 +5,8 @@ import { sendMessage } from '../api/runtime';
 import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/storage';
 import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 import { initWidgetScale } from '../responsive';
+import { SubscriptionTab } from './SubscriptionTab';
+import type { NftUploadState } from './types';
 
 const NETWORK: NetworkName = 'testnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
@@ -12,7 +14,7 @@ const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB limit to avoid oversized images
 
 
-type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions';
+type TabKey = 'overview' | 'assets' | 'nfts' | 'activity' | 'actions' | 'subscription';
 
 type OverviewState = {
     data?: AccountOverviewPayload;
@@ -34,14 +36,6 @@ const INITIAL_TRANSFER_FORM: TransferFormState = {
     amount: '',
     recipient: '',
     submitting: false,
-};
-
-type NftUploadState = {
-    file?: File;
-    uploading: boolean;
-    error?: string;
-    successMessage?: string;
-    resetCounter: number;
 };
 
 const INITIAL_NFT_UPLOAD_STATE: NftUploadState = {
@@ -702,7 +696,7 @@ export function App(): ReactElement | null {
                         </header>
 
                         <nav className="zklogin-tabs">
-                            {DEFAULT_TABS.concat('actions').map(tab => (
+                            {DEFAULT_TABS.concat(['actions', 'subscription']).map(tab => (
                                 <button
                                     key={tab}
                                     className={`zklogin-tab ${ (activeTabByAccount[account.address] ?? 'overview') === tab ? 'zklogin-tab--active' : '' }`}
@@ -943,7 +937,16 @@ export function App(): ReactElement | null {
                     </div>
                 </div>
             );
-        
+        case 'subscription':
+            return (
+                <SubscriptionTab
+                    account={account}
+                    nftUploadState={uploadState}
+                    onNftFileChange={files => { handleUploadFileChange(account.address, files); }}
+                    onNftUpload={async () => { await handleNftUpload(account.address); }}
+                />
+            );
+
         default:
             return <div className="zklogin-section">Unsupported tab.</div>;
         }
@@ -982,6 +985,8 @@ function labelForTab(tab: TabKey): string {
         return 'Activity';
     case 'actions':
         return 'Actions';
+    case 'subscription':
+        return 'Subscription';
     default:
         return tab;
     }

@@ -18,6 +18,8 @@ const BASE_DEFAULT_CONFIG: ExtensionConfig = {
     zkProverAuthToken: '',
     backendRegistrationUrl: '',
     nftUploadUrl: 'https://zklogin.wiimdy.kr/api/walrus/upload',
+    subscriptionPackageId: '0xc5ce2742cac46421b62028557f1d7aea8a4c50f651379a79afdf12cd88628807',
+    subscriptionMvrName: '@pkg/seal-demo-1234',
 };
 
 let cachedDefaults: ExtensionConfig | null = null;
