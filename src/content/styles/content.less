@@ -127,18 +127,7 @@
     background: transparent;
 }
 
-.zklogin-overlay__resize-handle {
-    position: relative;
-    width: 28px;
-    height: 28px;
-    margin-left: auto;
-    margin-top: 8px;
-    cursor: nwse-resize;
-    pointer-events: auto;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-}
+
 
 .zklogin-overlay__resize-grip {
     width: 100%;
@@ -261,9 +250,11 @@
 
 .zklogin-card__actions {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 8px;
-    align-items: flex-end;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 .zklogin-card__address {
@@ -346,12 +337,13 @@
     flex-wrap: wrap;
     gap: 0.4em;
     margin-top: 4px;
+    flex-direction: row;
 }
 
 .zklogin-tab {
     border: none;
     border-radius: 999px;
-    padding: 6px 12px;
+    padding: 6px 10px;
     font-size: calc(0.6rem + var(--zklogin-font-offset));
     cursor: pointer;
     background: rgba(148, 163, 184, 0.12);

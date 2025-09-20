@@ -24,17 +24,17 @@ const MAX_OVERLAY_HEIGHT = 880;
 
 function getInitialOverlaySize(): { width: number; height: number } {
     if (typeof window === 'undefined') {
-        return { width: 420, height: 560 };
+        return { width: 420, height: 460 };
     }
     const preferredHeight = Math.round(window.innerHeight * 0.68);
     const height = Math.min(
         Math.max(MIN_OVERLAY_HEIGHT, preferredHeight),
         Math.max(MIN_OVERLAY_HEIGHT, Math.min(MAX_OVERLAY_HEIGHT, window.innerHeight - 60)),
-    );
+    ) - 70;
     const width = Math.min(
         Math.max(MIN_OVERLAY_WIDTH, 420),
         Math.max(MIN_OVERLAY_WIDTH, Math.min(MAX_OVERLAY_WIDTH, window.innerWidth - 40)),
-    );
+    )+ 35;
     return { width, height };
 }
 
@@ -560,9 +560,7 @@ export function App(): ReactElement | null {
         if (target?.closest('button,input,select,textarea,a')) {
             return;
         }
-        if (target?.closest('[data-resize-handle]')) {
-            return;
-        }
+
         // 확장된 상태에서는 헤더에서만 드래그 시작 허용
         if (!collapsed && !target?.closest('.zklogin-overlay__header')) {
             return;
@@ -879,15 +877,7 @@ export function App(): ReactElement | null {
                     </section>
                 ))}
                 </div>
-                <div
-                    className="zklogin-overlay__resize-handle"
-                    data-resize-handle="true"
-                    onPointerDown={handleResizePointerDown}
-                    role="presentation"
-                    title="드래그해서 창 크기를 조절하세요"
-                >
-                    <span className="zklogin-overlay__resize-grip" />
-                </div>
+
             </>
             )}
         </div>
@@ -985,7 +975,11 @@ export function App(): ReactElement | null {
                     <ul className="zklogin-list">
                         {(data?.nfts ?? []).map(nft => (
                             <li key={nft.objectId}>
-                                <div>{nft.display} <span className="zklogin-muted">({shortenAddress(nft.objectId)})</span></div>
+                                <div> <span className="zklogin-muted">
+                                <a href={makeSuiscanUrl(NETWORK, 'object', nft.objectId)} target="_blank" rel="noopener noreferrer">
+                                        {nft.objectId}
+                                    </a>
+                                </span></div>
                                 {nft.description && <div className="zklogin-muted">{nft.description}</div>}
                             </li>
                         ))}

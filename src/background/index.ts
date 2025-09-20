@@ -1,6 +1,6 @@
 /// <reference types="chrome" />
 
-import { SuiClient } from '@mysten/sui/client';
+import { SuiClient, type SuiObjectResponse } from '@mysten/sui/client';
 import { getFaucetHost, requestSuiFromFaucetV2 } from '@mysten/sui/faucet';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
@@ -24,6 +24,30 @@ const IS_TESTNET = ZK_LOGIN_NETWORK === 'testnet';
 const FAUCET_RETRY_DELAYS_MS = [700, 1500, 2500, 4000, 6000];
 
 const suiClient = new SuiClient({ url: TESTNET_FULLNODE });
+
+const NFT_IMAGE_FIELD_KEYS = ['image_url', 'img_url', 'image', 'thumbnail', 'media_url', 'URL'] as const;
+function isLikelyNftObject(item: SuiObjectResponse): boolean {
+    const displayData = item.data?.display?.data;
+    if (!displayData || typeof displayData !== 'object') {
+        const content = item.data?.content;
+        if (!content || typeof content !== 'object') {
+            return false;
+        }
+        const fields = (content as { fields?: Record<string, unknown> }).fields;
+        if (!fields || typeof fields !== 'object') {
+            return false;
+        }
+        return NFT_IMAGE_FIELD_KEYS.some(key => {
+            const value = (fields as Record<string, unknown>)[key];
+            return typeof value === 'string' && value.trim().length > 0;
+        });
+    }
+    const displayRecord = displayData as Record<string, unknown>;
+    return NFT_IMAGE_FIELD_KEYS.some(key => {
+        const value = displayRecord[key];
+        return typeof value === 'string' && value.trim().length > 0;
+    });
+}
 
 chrome.runtime.onInstalled.addListener(() => {
     console.info('[background] Twitch zkLogin Wallet extension installed');
@@ -471,7 +495,7 @@ async function buildAccountOverview(address: string): Promise<AccountOverviewPay
         suiClient.getOwnedObjects({
             owner: address,
             limit: 50,
-            options: { showDisplay: true, showType: true },
+            options: { showDisplay: true, showType: true, showContent: true },
         }).catch(() => ({ data: [] })),
         suiClient.queryTransactionBlocks({ filter: { ToAddress: address }, limit: 10, options: { showEffects: false, showInput: true } }),
         suiClient.queryTransactionBlocks({ filter: { FromAddress: address }, limit: 10, options: { showEffects: false, showInput: true } }),
@@ -484,21 +508,21 @@ async function buildAccountOverview(address: string): Promise<AccountOverviewPay
             balance: Number(balance.totalBalance) / 1_000_000_000,
         }));
 
-    const nfts = objectResponse.data.reduce<Array<{ display: string; objectId: string; description?: string }>>((list, item) => {
-        const display = item.data?.display?.data;
-        const name = typeof display?.name === 'string' ? display.name : null;
-        const description = typeof display?.description === 'string' ? display.description : undefined;
-        const type = item.data?.type ?? 'unknown';
-        if (!name && type.startsWith('0x2::coin::')) {
-            return list;
-        }
-        list.push({
-            display: name ?? type,
+    const nftObjects = (objectResponse.data ?? []).filter(isLikelyNftObject);
+    const nfts = nftObjects.map(item => {
+        const display = (item.data?.display?.data ?? {}) as Record<string, unknown>;
+        const name = typeof display.name === 'string' && display.name.trim().length > 0
+            ? display.name
+            : item.data?.type ?? 'unknown';
+        const description = typeof display.description === 'string' && display.description.trim().length > 0
+            ? display.description
+            : undefined;
+        return {
+            display: name,
             objectId: item.data?.objectId ?? 'unknown',
             ...(description ? { description } : {}),
-        });
-        return list;
-    }, []);
+        };
+    });
 
     const deduped = new Map<string, { digest: string; kind: string; timestampMs?: string }>();
     const appendTx = (txList: typeof incomingTxs.data) => {
