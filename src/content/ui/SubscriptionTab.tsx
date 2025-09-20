@@ -59,10 +59,17 @@ type FollowerState = {
     serviceIdInput: string;
     loading: boolean;
     service?: (ServiceSummary & { subscriptionId?: string });
-    decryptedUrls: string[];
+    decryptedFiles: DecryptedFile[];
     decrypting: boolean;
     error?: string;
 };
+
+interface DecryptedFile {
+    url: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+}
 
 export interface SubscriptionTabProps {
     account: AccountPublicData;
@@ -93,7 +100,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
         serviceIdInput: '',
         loading: false,
         decrypting: false,
-        decryptedUrls: [],
+        decryptedFiles: [],
     });
 
     const suiClient = useMemo(() => new SuiClient({ url: TESTNET_FULLNODE }), []);
@@ -364,7 +371,10 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
             setFollowerState(prev => ({ ...prev, error: 'Enter a service object ID first.' }));
             return;
         }
-        setFollowerState(prev => ({ ...prev, loading: true, error: undefined, decryptedUrls: [] }));
+        setFollowerState(prev => {
+            cleanupDecryptedFiles(prev.decryptedFiles);
+            return { ...prev, loading: true, error: undefined, decryptedFiles: [] };
+        });
         try {
             const service = await fetchServiceSummary(suiClient, serviceId);
             if (!service) {
