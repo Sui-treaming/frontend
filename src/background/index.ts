@@ -95,11 +95,25 @@ async function signPersonalMessage(address: string, messageBase64: string): Prom
         const session = await getSessionOrThrow(address);
         const keypair = Ed25519Keypair.fromSecretKey(base64ToUint8(session.ephemeralPrivateKey));
         const messageBytes = base64ToUint8(messageBase64);
-        const signatureBytes = await keypair.sign(messageBytes);
+        const { signature: userSignature } = await keypair.signPersonalMessage(messageBytes);
+        const addressSeed = session.proof.addressSeed ?? genAddressSeed(
+            BigInt(session.salt),
+            'sub',
+            session.sub,
+            session.aud,
+        ).toString();
+        const zkLoginSignature = getZkLoginSignature({
+            inputs: {
+                ...session.proof,
+                addressSeed,
+            },
+            maxEpoch: session.maxEpoch,
+            userSignature,
+        });
         return {
             type: 'SIGN_PERSONAL_MESSAGE',
             ok: true,
-            data: { signature: uint8ToBase64(new Uint8Array(signatureBytes)) },
+            data: { signature: zkLoginSignature },
         };
     } catch (error) {
         console.warn('[background] signPersonalMessage failed', error);

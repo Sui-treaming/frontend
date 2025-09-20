@@ -208,7 +208,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 sender: account.address,
             });
 
-            const serialized = tx.serialize();
+            const serialized = await tx.toJSON({ client: suiClient });
             const response = await sendMessage({
                 type: 'SIGN_AND_EXECUTE',
                 address: account.address,
@@ -227,7 +227,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 error: error instanceof Error ? error.message : 'Failed to create service.',
             }));
         }
-    }, [account.address, packageId, policyForm.name, policyForm.price, policyForm.ttlMinutes, refreshServices]);
+    }, [account.address, packageId, policyForm.name, policyForm.price, policyForm.ttlMinutes, refreshServices, suiClient]);
 
     const handleSecretFileChange = useCallback((files: FileList | null) => {
         const file = files?.[0];
@@ -333,7 +333,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 blobId: secretState.info.blobId,
                 sender: account.address,
             });
-            const serialized = tx.serialize();
+            const serialized = await tx.toJSON({ client: suiClient });
             const response = await sendMessage({
                 type: 'SIGN_AND_EXECUTE',
                 address: account.address,
@@ -356,7 +356,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 error: error instanceof Error ? error.message : 'Failed to publish encrypted blob.',
             }));
         }
-    }, [account.address, packageId, refreshServices, secretState.info, selectedService]);
+    }, [account.address, packageId, refreshServices, secretState.info, selectedService, suiClient]);
 
     const loadFollowerService = useCallback(async () => {
         const serviceId = followerState.serviceIdInput.trim();
@@ -418,7 +418,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 feeMist: service.fee,
                 sender: account.address,
             });
-            const serialized = tx.serialize();
+            const serialized = await tx.toJSON({ client: suiClient });
             const response = await sendMessage({
                 type: 'SIGN_AND_EXECUTE',
                 address: account.address,
@@ -438,7 +438,7 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                 error: error instanceof Error ? error.message : 'Failed to subscribe to this service.',
             }));
         }
-    }, [account.address, followerState.service, loadFollowerService, packageId]);
+    }, [account.address, followerState.service, loadFollowerService, packageId, suiClient]);
 
     const handleDecrypt = useCallback(async () => {
         const service = followerState.service;
