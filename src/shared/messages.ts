@@ -15,7 +15,7 @@ export type MessageRequest =
         address: string;
         fileName: string;
         fileType: string;
-        fileData: ArrayBuffer;
+        fileDataBase64: string;
     };
 
 type SuccessResponse<T extends MessageRequest['type'], D> = {

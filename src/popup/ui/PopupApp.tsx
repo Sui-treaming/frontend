@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../../content/api/runtime';
-import { makePolymediaUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
+import { makePolymediaUrl,makeSuiscanUrl,  NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 
 const NETWORK: NetworkName = 'testnet';
 
@@ -192,7 +192,7 @@ export function PopupApp(): ReactElement {
                     <div>
                         <span className="popup__badge">Twitch</span>
                         <a
-                            href={makePolymediaUrl(NETWORK, 'address', selectedAccount.address)}
+                            href={makeSuiscanUrl(NETWORK, 'address', selectedAccount.address)}
                             target="_blank"
                             rel="noopener noreferrer"
                         >View on explorer ↗</a>
@@ -231,7 +231,7 @@ export function PopupApp(): ReactElement {
                                 {selectedOverview.data.recentTransactions.slice(0, 5).map(tx => (
                                     <li key={tx.digest}>
                                         <a
-                                            href={makePolymediaUrl(NETWORK, 'tx', tx.digest)}
+                                            href={makeSuiscanUrl(NETWORK, 'tx', tx.digest)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                         >{shortenAddress(tx.digest)}</a>

@@ -3,6 +3,7 @@ import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../api/runtime';
 import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/storage';
+import { uint8ToBase64 } from '../../shared/encoding';
 import { makeSuiscanUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 import { initWidgetScale } from '../responsive';
 import { SubscriptionTab } from './SubscriptionTab';
@@ -502,12 +503,13 @@ export function App(): ReactElement | null {
 
         try {
             const buffer = await file.arrayBuffer();
+            const base64 = uint8ToBase64(new Uint8Array(buffer));
             const response = await sendMessage({
                 type: 'UPLOAD_NFT_IMAGE',
                 address,
                 fileName: file.name,
                 fileType: file.type || 'application/octet-stream',
-                fileData: buffer,
+                fileDataBase64: base64,
             });
             updateUploadState(address, prev => ({
                 ...prev,

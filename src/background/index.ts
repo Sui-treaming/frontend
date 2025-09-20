@@ -155,36 +155,43 @@ async function uploadNftImage(message: Extract<MessageRequest, { type: 'UPLOAD_N
             throw new Error('NFT upload endpoint is not configured. Set it in the extension options.');
         }
 
+        if (!message.fileDataBase64) {
+            throw new Error('Missing NFT file data.');
+        }
+        const fileBytes = base64ToUint8(message.fileDataBase64);
+
         console.info('[background] Uploading NFT image', {
             endpoint,
             address: session.address,
             fileName: message.fileName,
             fileType: message.fileType,
-            fileSize: message.fileData.byteLength,
+            fileSize: fileBytes.byteLength,
+            filedata: message.fileDataBase64
         });
 
-        // JSON base64 payload (먼저 시도)
-        // const fileName = message.fileName || 'upload.png';
         const contentType = message.fileType || 'application/octet-stream';
-        // const base64 = uint8ToBase64(new Uint8Array(message.fileData));
-        // const dataUrl = `data:${contentType};base64,${base64}`;
-
-        // let response = await fetch(endpoint, {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({ filename: fileName, contentType, data: dataUrl }),
-        // });
-
-        // // Fallback: some endpoints require raw image/png instead of JSON
-        // if (response.status === 415) {
-        //     console.warn('[background] JSON upload not supported, retrying as image/png');
-        const blob = await ensurePngBlob(message.fileData, contentType);
-        let response = await fetch(endpoint, {
+        const createFetchInit = (blob: Blob, mime: string): RequestInit => ({
             method: 'POST',
-            headers: { 'Content-Type': 'image/png' },
+            headers: {
+                'Content-Type': mime,
+                streamid: session.sub,
+            },
             body: blob,
         });
-    
+
+        let blob = new Blob([fileBytes], { type: contentType });
+        if (blob.size === 0) {
+            blob = new Blob([fileBytes.buffer]);
+        }
+
+        let response = await fetch(endpoint, createFetchInit(blob, blob.type || contentType));
+
+        if (response.status === 415) {
+            console.warn('[background] Upload endpoint rejected content type, retrying as PNG');
+            const pngBlob = await ensurePngBlob(fileBytes.buffer, contentType);
+            response = await fetch(endpoint, createFetchInit(pngBlob, 'image/png'));
+        }
+
 
         if (!response.ok) {
             const text = await response.text();
