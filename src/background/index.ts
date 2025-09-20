@@ -1,10 +1,11 @@
 /// <reference types="chrome" />
 
 import { SuiClient } from '@mysten/sui/client';
+import { getFaucetHost, requestSuiFromFaucetV2 } from '@mysten/sui/faucet';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
-import { genAddressSeed, generateNonce, generateRandomness, getExtendedEphemeralPublicKey, getZkLoginSignature, jwtToAddress } from '@mysten/sui/zklogin';
-import { Transaction } from '@mysten/sui/transactions';
+import { computeZkLoginAddressFromSeed, genAddressSeed, generateNonce, generateRandomness, getExtendedEphemeralPublicKey, getZkLoginSignature, jwtToAddress } from '@mysten/sui/zklogin';
+import { Transaction, type ObjectRef } from '@mysten/sui/transactions';
 import type { JwtPayload } from 'jwt-decode';
 import { jwtDecode } from 'jwt-decode';
 
@@ -17,6 +18,10 @@ import type { AccountOverviewPayload } from '../shared/messages';
 
 const EPHEMERAL_EPOCH_OFFSET = 2;
 const ZK_LOGIN_NETWORK = 'testnet';
+const SUI_COIN_TYPE = '0x2::sui::SUI';
+const GAS_BUFFER_MIST = 50_000_000n; // 0.05 SUI buffer for gas fees
+const IS_TESTNET = ZK_LOGIN_NETWORK === 'testnet';
+const FAUCET_RETRY_DELAYS_MS = [700, 1500, 2500, 4000, 6000];
 
 const suiClient = new SuiClient({ url: TESTNET_FULLNODE });
 
@@ -145,27 +150,27 @@ async function uploadNftImage(message: Extract<MessageRequest, { type: 'UPLOAD_N
         });
 
         // JSON base64 payload (먼저 시도)
-        const fileName = message.fileName || 'upload.png';
+        // const fileName = message.fileName || 'upload.png';
         const contentType = message.fileType || 'application/octet-stream';
-        const base64 = uint8ToBase64(new Uint8Array(message.fileData));
-        const dataUrl = `data:${contentType};base64,${base64}`;
+        // const base64 = uint8ToBase64(new Uint8Array(message.fileData));
+        // const dataUrl = `data:${contentType};base64,${base64}`;
 
+        // let response = await fetch(endpoint, {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({ filename: fileName, contentType, data: dataUrl }),
+        // });
+
+        // // Fallback: some endpoints require raw image/png instead of JSON
+        // if (response.status === 415) {
+        //     console.warn('[background] JSON upload not supported, retrying as image/png');
+        const blob = await ensurePngBlob(message.fileData, contentType);
         let response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: fileName, contentType, data: dataUrl }),
+            headers: { 'Content-Type': 'image/png' },
+            body: blob,
         });
-
-        // Fallback: some endpoints require raw image/png instead of JSON
-        if (response.status === 415) {
-            console.warn('[background] JSON upload not supported, retrying as image/png');
-            const blob = await ensurePngBlob(message.fileData, contentType);
-            response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'image/png' },
-                body: blob,
-            });
-        }
+    
 
         if (!response.ok) {
             const text = await response.text();
@@ -302,7 +307,11 @@ async function startTwitchLogin(): Promise<MessageResponse> {
         if (!decodedJwt.aud) {
             throw new Error('Twitch JWT missing audience.');
         }
+        if (!decodedJwt.iss) {
+            throw new Error('Twitch JWT missing issuer.');
+        }
         const audience = Array.isArray(decodedJwt.aud) ? decodedJwt.aud[0] : decodedJwt.aud;
+        const issuer = decodedJwt.iss;
         console.info('[zklogin] aud from JWT:', audience);
         // Ensure salt exists for this Twitch user in backend (or fallback to legacy fetch)
         const salt = await resolveSalt({
@@ -311,8 +320,6 @@ async function startTwitchLogin(): Promise<MessageResponse> {
             jwt: idToken,
         });
         const saltBigInt = normalizeToField(BigInt(salt));
-
-        const userAddress = jwtToAddress(idToken, saltBigInt);
 
         const proofRequestBody = {
             network: ZK_LOGIN_NETWORK,
@@ -327,6 +334,25 @@ async function startTwitchLogin(): Promise<MessageResponse> {
             authorizationToken: config.zkProverAuthToken,
             body: proofRequestBody,
         });
+
+        const proofAddressSeed = proof.addressSeed ?? genAddressSeed(
+            saltBigInt,
+            'sub',
+            decodedJwt.sub,
+            audience,
+        ).toString();
+
+        const userAddressFromProof = computeZkLoginAddressFromSeed(
+            BigInt(proofAddressSeed),
+            issuer,
+            false,
+        );
+
+        const addressFromSalt = jwtToAddress(idToken, saltBigInt);
+        const userAddress = userAddressFromProof;
+        if (addressFromSalt !== userAddressFromProof) {
+            console.warn('[zklogin] Address mismatch between salt-derived and proof-derived values; using proof-derived address');
+        }
 
         const sessions = await getAccountSessions();
         const session: AccountSession = {
@@ -419,7 +445,7 @@ async function fetchAccountOverview(address: string): Promise<MessageResponse> {
 
 async function buildAccountOverview(address: string): Promise<AccountOverviewPayload> {
     const [suiBalance, allBalances, objectResponse, incomingTxs, outgoingTxs] = await Promise.all([
-        suiClient.getBalance({ owner: address, coinType: '0x2::sui::SUI' }),
+        suiClient.getBalance({ owner: address, coinType: SUI_COIN_TYPE }),
         suiClient.getAllBalances({ owner: address }),
         suiClient.getOwnedObjects({
             owner: address,
@@ -431,7 +457,7 @@ async function buildAccountOverview(address: string): Promise<AccountOverviewPay
     ]);
 
     const coinBalances = allBalances
-        .filter(balance => balance.coinType !== '0x2::sui::SUI')
+        .filter(balance => balance.coinType !== SUI_COIN_TYPE)
         .map(balance => ({
             type: balance.coinType,
             balance: Number(balance.totalBalance) / 1_000_000_000,
@@ -484,14 +510,19 @@ async function buildAccountOverview(address: string): Promise<AccountOverviewPay
 
 async function executeTransactionWithSession(session: AccountSession, payload: SerializedTransactionRequest): Promise<string> {
     const keypair = Ed25519Keypair.fromSecretKey(base64ToUint8(session.ephemeralPrivateKey));
+    const gasPayment = await ensureSuiForTransaction(session, payload);
     const tx = await buildTransaction(session.address, payload);
+
+    if (gasPayment.length > 0) {
+        tx.setGasPayment(gasPayment);
+    }
 
     const { bytes, signature: userSignature } = await tx.sign({
         client: suiClient,
         signer: keypair,
     });
 
-    const addressSeed = genAddressSeed(
+    const addressSeed = session.proof.addressSeed ?? genAddressSeed(
         BigInt(session.salt),
         'sub',
         session.sub,
@@ -514,6 +545,118 @@ async function executeTransactionWithSession(session: AccountSession, payload: S
     });
 
     return executeResult.digest;
+}
+
+type CoinStruct = Awaited<ReturnType<typeof suiClient.getCoins>>['data'][number];
+
+interface SpendableCoinState {
+    coins: CoinStruct[];
+    totalBalance: bigint;
+}
+
+async function ensureSuiForTransaction(session: AccountSession, payload: SerializedTransactionRequest): Promise<ObjectRef[]> {
+    const transferAmountMist = payload.kind === 'transfer-sui' && typeof payload.amount === 'number'
+        ? toMist(payload.amount)
+        : 0n;
+
+    const minimumRequired = (transferAmountMist > 0n ? transferAmountMist : 0n) + GAS_BUFFER_MIST;
+
+    let state = await collectSpendableCoins(session.address);
+
+    if (state.totalBalance >= minimumRequired && state.coins.length > 0) {
+        return coinsToObjectRefs(state.coins);
+    }
+
+    if (!IS_TESTNET) {
+        const message = transferAmountMist > 0n && state.totalBalance < transferAmountMist
+            ? '보내려는 SUI 양이 계정 잔액보다 많습니다.'
+            : 'SUI 잔액이 부족하여 거래 수수료를 낼 수 없습니다.';
+        throw new Error(message);
+    }
+
+    console.info('[background] 부족한 가스를 채우기 위해 testnet faucet을 호출합니다.');
+    await requestFaucetAndWait(session.address);
+
+    state = await collectSpendableCoins(session.address);
+
+    if (state.totalBalance >= minimumRequired && state.coins.length > 0) {
+        return coinsToObjectRefs(state.coins);
+    }
+
+    const failureMessage = transferAmountMist > 0n && state.totalBalance < transferAmountMist
+        ? '보내려는 SUI 양이 아직 부족합니다. 지갑에 SUI를 더 충전한 뒤 다시 시도하세요.'
+        : '테스트넷 faucet에서 아직 SUI가 도착하지 않았습니다. 잠시 기다린 뒤 다시 시도해주세요.';
+
+    throw new Error(failureMessage);
+}
+
+async function collectSpendableCoins(address: string): Promise<SpendableCoinState> {
+    const [balanceResult, coinsPage] = await Promise.all([
+        suiClient.getBalance({ owner: address, coinType: SUI_COIN_TYPE }),
+        suiClient.getCoins({ owner: address, coinType: SUI_COIN_TYPE, limit: 50 }),
+    ]);
+
+    const coins = (coinsPage.data ?? []).filter(coin => {
+        try {
+            return BigInt(coin.balance) > 0n;
+        } catch {
+            return false;
+        }
+    });
+
+    coins.sort((a, b) => {
+        const balanceA = BigInt(a.balance);
+        const balanceB = BigInt(b.balance);
+        if (balanceA === balanceB) {
+            return 0;
+        }
+        return balanceA > balanceB ? -1 : 1;
+    });
+
+    let totalBalance = 0n;
+    try {
+        totalBalance = BigInt(balanceResult.totalBalance ?? '0');
+    } catch {
+        totalBalance = coins.reduce<bigint>((acc, coin) => acc + BigInt(coin.balance), 0n);
+    }
+
+    return { coins, totalBalance };
+}
+
+async function requestFaucetAndWait(address: string): Promise<void> {
+    try {
+        const host = getFaucetHost('testnet');
+        await requestSuiFromFaucetV2({ host, recipient: address });
+    } catch (error) {
+        console.warn('[background] Faucet request failed', error);
+        throw new Error('테스트넷 faucet 요청이 실패했습니다. 잠시 후 다시 시도하거나 수동으로 가스를 충전하세요.');
+    }
+
+    for (const delayMs of FAUCET_RETRY_DELAYS_MS) {
+        await sleep(delayMs);
+        const state = await collectSpendableCoins(address);
+        if (state.coins.length > 0) {
+            return;
+        }
+    }
+}
+
+function coinsToObjectRefs(coins: CoinStruct[]): ObjectRef[] {
+    return coins.slice(0, 32).map(coin => ({
+        objectId: coin.coinObjectId,
+        digest: coin.digest,
+        version: coin.version,
+    }));
+}
+
+function toMist(amount: number): bigint {
+    return BigInt(Math.floor(amount * 1_000_000_000));
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
+    });
 }
 
 async function buildTransaction(sender: string, payload: SerializedTransactionRequest) {
@@ -666,10 +809,24 @@ async function fetchZkProof({ url, jwt, authorizationToken, body }: FetchZkProof
         throw new Error(`Invalid proof response: missing fields. Keys present: ${keys}`);
     }
 
+    const rawAddressSeed = src.addressSeed;
+    let addressSeed: string | undefined;
+    if (typeof rawAddressSeed === 'string') {
+        addressSeed = rawAddressSeed;
+    } else if (typeof rawAddressSeed === 'number' || typeof rawAddressSeed === 'bigint') {
+        addressSeed = rawAddressSeed.toString();
+    }
+
+    if (!addressSeed) {
+        const keys = Object.keys(src as Record<string, unknown>).join(', ');
+        throw new Error(`Invalid proof response: missing addressSeed. Keys present: ${keys}`);
+    }
+
     const proof: StoredZkLoginProof = {
         proofPoints: src.proofPoints as StoredZkLoginProof['proofPoints'],
         issBase64Details: src.issBase64Details as StoredZkLoginProof['issBase64Details'],
         headerBase64: src.headerBase64 as StoredZkLoginProof['headerBase64'],
+        addressSeed,
     };
 
     return proof;

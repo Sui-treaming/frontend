@@ -11,7 +11,11 @@ export interface AccountPublicData {
     createdAt: number;
 }
 
-export type StoredZkLoginProof = Omit<ZkLoginSignatureInputs, 'addressSeed'>;
+type BaseStoredZkLoginProof = Omit<ZkLoginSignatureInputs, 'addressSeed'>;
+
+export interface StoredZkLoginProof extends BaseStoredZkLoginProof {
+    addressSeed?: string;
+}
 
 export interface AccountSession extends AccountPublicData {
     salt: string;
