@@ -861,26 +861,26 @@ async function downloadAndDecrypt(params: {
     const { blobIds, sessionKey, suiClient, sealClient, serviceId, subscriptionId, packageId } = params;
     const aggregatorUrls = DEFAULT_WALRUS_SERVICES.map(item => `${item.aggregatorUrl.replace(/\/$/, '')}/v1/blobs/`);
 
+    if (aggregatorUrls.length === 0) {
+        throw new Error('No Walrus aggregators configured.');
+    }
+
     const downloaded: Array<{ blobId: string; bytes: Uint8Array }> = [];
     for (const blobId of blobIds) {
-        const aggregator = aggregatorUrls[Math.floor(Math.random() * aggregatorUrls.length)] ?? aggregatorUrls[0];
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10_000);
-            const response = await fetch(`${aggregator}${blobId}`, { signal: controller.signal });
-            clearTimeout(timeout);
-            if (!response.ok) {
-                continue;
-            }
-            const buffer = await response.arrayBuffer();
-            downloaded.push({ blobId, bytes: new Uint8Array(buffer) });
-        } catch (error) {
-            console.warn('[subscription] failed to download blob', { blobId, error: String(error) });
+        const bytes = await downloadBlobFromWalrus(blobId, aggregatorUrls);
+        if (!bytes) {
+            console.warn('[subscription] failed to download blob from all aggregators', { blobId });
+            continue;
         }
+        downloaded.push({ blobId, bytes });
     }
 
     if (downloaded.length === 0) {
         throw new Error('Failed to download encrypted files from Walrus. Try again.');
+    }
+
+    if (downloaded.length !== blobIds.length) {
+        throw new Error('Failed to download all encrypted files from Walrus. Try again later.');
     }
 
     const moveCall = (tx: Transaction, id: string) => {
@@ -1067,6 +1067,35 @@ function cleanupDecryptedFiles(files: DecryptedFile[]): void {
             console.warn('[subscription] Failed to revoke object URL', error);
         }
     });
+}
+
+async function downloadBlobFromWalrus(blobId: string, aggregatorUrls: string[]): Promise<Uint8Array | null> {
+    for (const aggregator of aggregatorUrls) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+            const response = await fetch(`${aggregator}${blobId}`, { signal: controller.signal });
+            if (!response.ok) {
+                console.warn('[subscription] Walrus aggregator responded with non-OK status', {
+                    aggregator,
+                    blobId,
+                    status: response.status,
+                });
+                continue;
+            }
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+        } catch (error) {
+            console.warn('[subscription] failed to download blob', {
+                aggregator,
+                blobId,
+                error: String(error),
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+    return null;
 }
 
 function detectMimeType(bytes: Uint8Array): string | null {
