@@ -82,7 +82,7 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 
 ## Demo Walkthrough
 ### 1. Load the Extension
-![setting1](public/img/setting1.png)
+<img src="public/img/setting1.png" alt="setting1" width="250" />  
 1. Run `pnpm build` to populate `dist/`.
 2. Navigate to `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select `dist`.
 3. Confirm the UpSuider icon appears in the toolbar.
@@ -90,7 +90,7 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 
 ### 2. Connect a Twitch Account
 
-![connect_twitch](public/img/connect_twitch.png)
+<img src="public/img/connect_twitch.png" alt="connect_twitch" width="250" />  
 1. Open the popup and click **Connect Twitch account**.
 ![twitch_oauth](public/img/twitch_oauth.png)
 2. Complete the Twitch OAuth pop-up. The background worker will:
@@ -102,7 +102,7 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 
 ### 3. Explore the Twitch Overlay
 1. Visit `https://www.twitch.tv/<channel>` and look for the overlay in the top-right corner.
-![overview](public/img/overview.png) 
+<img src="public/img/overview.png" alt="overview" width="250" />  
 2. Tabs at a glance:
    - **Overview**: connection timestamp, max epoch, balance summary
    - **Assets**: SUI and other coin positions
@@ -113,28 +113,28 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 3. Use the toolbar to switch between streamer/viewer views, collapse the overlay, drag it, and tweak opacity.
 
 ### 4. Upload an NFT Image
-![action](public/img/action.png) 
+<img src="public/img/action.png" alt="action" width="250" />  
 1. In the Actions tab, pick an image (default size limit: 5 MB).
 2. Click **Upload image**. The worker POSTs to `nftUploadUrl` with `streamid`, filename, MIME type, and raw bytes.
 3. A success banner confirms the backend accepted the asset.
 
 ### 5. Send Testnet SUI
-![send_sui](public/img/send_sui.png) 
+<img src="public/img/send_sui.png" alt="send_sui" width="250" />  
 1. Still in Actions, enter an amount and recipient address.
 2. Click **Sign and send**. The worker may top up gas via the Testnet faucet, builds a `transfer-sui` transaction, signs it with zkLogin, and sends it to Testnet.
 3. On success the digest appears with a link to Suiscan.
 
 ### 6. Subscription Demo
 **Streamer flow**  
-![package_id](public/img/package_id.png) 
+<img src="public/img/package_id.png" alt="package_id" width="250" />  
 1. Ensure the desired `subscriptionPackageId` is configured in Options.
 2. In the Subscription tab (Streamer role) fill in price (Mist), TTL (minutes), and service name, then **Create service**.  
-![image](public/img/image.png)  
-![publish](public/img/publish.png)  
+<img src="public/img/image.png" alt="image" width="250" />  
+<img src="public/img/publish.png" alt="publish" width="250" />  
 3. Optionally choose a cover image, encrypt it with Mysten Seal, upload the encrypted blob to a Walrus publisher, and **Publish** it on-chain.
 
 **Follower flow**  
-![follower](public/img/follower.png) 
+<img src="public/img/follower.png" alt="follower" width="250" />  
 1. Switch to the follower’s wallet, open Subscription → Follower role, enter a service object ID, and click **Load service**.
 2. Review price and TTL, then **Subscribe** to execute the Move call.
 3. After activation, press **Decrypt**. The worker signs a session key via `SIGN_PERSONAL_MESSAGE`, fetches blobs from the Walrus aggregator, and decrypts them for display.
