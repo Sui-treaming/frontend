@@ -156,8 +156,5 @@ https://drive.google.com/file/d/1L2u_sClDRtNxg5ikY_668l1JAPQwAk6-/view?usp=shari
 - Missing overlays typically mean the bundle is stale—reload from `chrome://extensions` and ensure `assets/content.js` is present in DevTools → Sources.
 - The Options action **Clear cached zkLogin sessions** removes ephemeral proofs and keys so the next login starts clean.
 
-## References
-- Sui zkLogin docs: https://docs.sui.io/concepts/cryptography/zklogin
-- Enoki prover guidance: https://docs.sui.io/concepts/cryptography/zklogin#run-the-proving-service-in-your-backend
-- Walrus testnet docs: https://docs.walrus.site/
-- Mysten Seal SDK: https://docs.mystenlabs.com/devnet/build/seal
+## Presentation
+[presentation_sui-mming.pdf](public/presentation_sui-mming.pdf)
