@@ -48,7 +48,7 @@
     backdrop-filter: blur(12px);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible; /* allow floating popovers to extend outside */
 }
 
 /* Subtle, animated wave backdrop inside the overlay (Sea/Aqua tones) */
@@ -61,6 +61,8 @@
         radial-gradient(50% 60% at 110% 20%, rgba(192, 230, 255, 0.12), rgba(192, 230, 255, 0) 60%), /* Aqua */
         radial-gradient(40% 55% at -10% 120%, rgba(1, 24, 41, 0.22), rgba(1, 24, 41, 0) 60%);      /* Ocean */
     filter: blur(22px);
+    /* Clip wave backdrop to rounded overlay even with overflow visible */
+    clip-path: inset(0 round 18px);
     animation: zklogin-waves 16s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
@@ -93,6 +95,8 @@
     border-radius: 12px;
     padding: 10px;
     box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+    pointer-events: auto;
+    z-index: 5;
 }
 .zklogin-overlay__opacity-row {
     display: flex;
