@@ -6,11 +6,13 @@ import { OVERLAY_KEY, getWidgetOpacity, setWidgetOpacity } from '../../shared/st
 import { uint8ToBase64 } from '../../shared/encoding';
 import { makeSuiscanUrl, NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 import { initWidgetScale } from '../responsive';
+import { initButtonAnimations, animateOverlayCollapsed, moveTabsIndicator, animateTabEnter } from '../animations';
 import { SubscriptionTab } from './SubscriptionTab';
 import type { NftUploadState } from './types';
 
 const NETWORK: NetworkName = 'testnet';
 const DEFAULT_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity'];
+const ALL_TABS: TabKey[] = ['overview', 'assets', 'nfts', 'activity', 'actions', 'subscription'];
 
 const MAX_UPLOAD_BYTES = 900_000; // ~0.9 MB to stay within backend upload limits
 
@@ -95,6 +97,11 @@ export function App(): ReactElement | null {
     useEffect(() => { overlaySizeRef.current = overlaySize; }, [overlaySize]);
     const lastNftCountsRef = useRef<Record<string, number>>({});
     const [nftArrived, setNftArrived] = useState<Record<string, boolean>>({});
+    const navRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const tabContentRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const cardRefs = useRef<Record<string, HTMLElement | null>>({});
+    const prevTabRef = useRef<Record<string, TabKey | undefined>>({});
+    const prevContentHeightRef = useRef<Record<string, number | undefined>>({});
     const dragDataRef = useRef<{
         pointerId: number;
         offsetX: number;
@@ -137,6 +144,8 @@ export function App(): ReactElement | null {
 
     useEffect(() => {
         initWidgetScale();
+        // Install button press animations
+        initButtonAnimations(document);
     }, []);
 
     useEffect(() => {
@@ -155,7 +164,7 @@ export function App(): ReactElement | null {
         };
     }, [clampHeight, clampWidth]);
 
-    // Auto-poll overviews periodically so user doesn't need to press a button
+    // Auto-poll overviews periodically without toggling loading state (silent refresh)
     useEffect(() => {
         if (accounts.length === 0) {
             return;
@@ -163,8 +172,9 @@ export function App(): ReactElement | null {
         const intervalId = window.setInterval(() => {
             accounts.forEach(account => {
                 const state = overviews[account.address];
+                // Skip if a manual load is already in-flight
                 if (!state || !state.loading) {
-                    void loadOverview(account.address);
+                    void refreshOverviewSilent(account.address);
                 }
             });
         }, 10_000); // 10s
@@ -258,6 +268,43 @@ export function App(): ReactElement | null {
             overlay.style.setProperty('--zklogin-overlay-opacity', value);
         }
     }, [overlayOpacity]);
+
+    // Animate collapse/expand transitions using Motion
+    useEffect(() => {
+        animateOverlayCollapsed(overlayRef.current, collapsed);
+    }, [collapsed]);
+
+    // Keep the moving indicator aligned with the active tab
+    useEffect(() => {
+        accounts.forEach(account => {
+            const nav = navRefs.current[account.address];
+            if (!nav) return;
+            const activeTab = (activeTabByAccount[account.address] ?? 'overview');
+            const activeBtn = nav.querySelector(`.zklogin-tab[data-tab="${activeTab}"]`) as HTMLElement | null;
+            if (activeBtn) {
+                moveTabsIndicator(nav, activeBtn);
+            }
+        });
+    }, [accounts, activeTabByAccount]);
+
+    // Animate tab content on tab change
+    useEffect(() => {
+        accounts.forEach(account => {
+            const current = (activeTabByAccount[account.address] ?? 'overview');
+            const prev = prevTabRef.current[account.address];
+            if (prev && prev !== current) {
+                const contentEl = tabContentRefs.current[account.address];
+                const prevIndex = ALL_TABS.indexOf(prev);
+                const currIndex = ALL_TABS.indexOf(current);
+                const direction = prevIndex < currIndex ? 'right' : 'left';
+                // Animate inner content entrance only (avoid container size desync)
+                animateTabEnter(contentEl ?? null, direction as any);
+            }
+            prevTabRef.current[account.address] = current;
+            const nowRect = tabContentRefs.current[account.address]?.getBoundingClientRect();
+            prevContentHeightRef.current[account.address] = nowRect?.height;
+        });
+    }, [accounts, activeTabByAccount]);
 
     useEffect(() => {
         if (!collapsed) {
@@ -415,6 +462,24 @@ export function App(): ReactElement | null {
                 ...prev,
                 [address]: { ...prev[address], loading: false, error: extractMessage(err) },
             }));
+        }
+    }
+
+    // Silent background refresh for polling: do not flip loading flag or show errors
+    async function refreshOverviewSilent(address: string): Promise<void> {
+        try {
+            const response = await sendMessage({ type: 'FETCH_ACCOUNT_OVERVIEW', address });
+            setOverviews(prev => ({
+                ...prev,
+                [address]: {
+                    // Preserve any existing loading flag (in case a manual refresh is running)
+                    loading: prev[address]?.loading ?? false,
+                    data: response.data.overview,
+                },
+            }));
+        } catch (err) {
+            // Silent: don't surface transient errors from background polling
+            // Optionally, could log: console.debug('[overlay] silent refresh failed', err);
         }
     }
 
@@ -621,13 +686,12 @@ export function App(): ReactElement | null {
 
     const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target as HTMLElement | null;
-        // 버튼이나 인터랙티브 요소에서 드래그 시작 금지
+        // Prevent starting drag from interactive elements
         if (target?.closest('button,input,select,textarea,a')) {
             return;
         }
 
-        // 확장된 상태에서는 기본적으로 헤더에서만 드래그 허용하되,
-        // 뷰어 모드(viewer)에서는 헤더가 숨겨지므로 어디서든 드래그 허용
+        // In expanded mode limit drag to header; in viewer mode header is hidden so allow drag anywhere
         if (!collapsed && viewMode !== 'viewer' && !target?.closest('.zklogin-overlay__header')) {
             return;
         }
@@ -791,7 +855,7 @@ export function App(): ReactElement | null {
             {viewMode !== 'viewer' && (
             <header className="zklogin-overlay__header">
                 <div>
-                    <span className="zklogin-overlay__title">Twitch zkLogin Wallet</span>
+                    <span className="zklogin-overlay__title">UpSuider</span>
                     <span className="zklogin-overlay__subtitle">Sui Testnet</span>
                 </div>
                 <div className="zklogin-overlay__header-actions">
@@ -803,45 +867,6 @@ export function App(): ReactElement | null {
                     >
                         Change view
                     </button>
-                    {viewMode === 'streamer' && !collapsed && hasAccounts}
-                    <div className="zklogin-overlay__opacity">
-                        <button
-                            className="zklogin-icon-button"
-                            data-opacity-toggle="true"
-                            onClick={() => { setOpacityPopoverOpen(prev => !prev); }}
-                            title="Adjust widget transparency"
-                        >💧</button>
-                        {opacityPopoverOpen && (
-                            <div ref={popoverRef} className="zklogin-overlay__opacity-popover">
-                                <div className="zklogin-overlay__opacity-row">
-                                    <span>Opacity</span>
-                                    <div className="zklogin-overlay__opacity-controls">
-                                        <button
-                                            className="zklogin-overlay__opacity-step"
-                                            type="button"
-                                            onClick={() => { handleOpacityStep(-0.02); }}
-                                            title="Decrease opacity"
-                                        >−</button>
-                                        <button
-                                            className="zklogin-overlay__opacity-step"
-                                            type="button"
-                                            onClick={() => { handleOpacityStep(0.02); }}
-                                            title="Increase opacity"
-                                        >+</button>
-                                    </div>
-                                </div>
-                                <input
-                                    className="zklogin-overlay__opacity-range"
-                                    type="range"
-                                    min={40}
-                                    max={100}
-                                    value={Math.round(overlayOpacity * 100)}
-                                    onChange={handleOpacitySliderChange}
-                                />
-                                <div className="zklogin-overlay__opacity-value">{Math.round(overlayOpacity * 100)}%</div>
-                            </div>
-                        )}
-                    </div>
                     <button
                         className="zklogin-icon-button"
                         onClick={() => { setCollapsed(prev => !prev); }}
@@ -876,7 +901,11 @@ export function App(): ReactElement | null {
                             )}
 
                             {sortedAccounts.map(account => (
-                                <section key={account.address} className="zklogin-card">
+                                <section
+                                    key={account.address}
+                                    className="zklogin-card"
+                                    ref={el => { cardRefs.current[account.address] = el; }}
+                                >
                                     <header className="zklogin-card__header">
                                         <div className="zklogin-card__identity">
                                             <span className="zklogin-badge">Twitch</span>
@@ -890,7 +919,7 @@ export function App(): ReactElement | null {
                                                         type="button"
                                                     >📋</button>
                                                     {copiedFor === account.address && (
-                                                        <span className="zklogin-copy-hint">복사되었습니다</span>
+                                                        <span className="zklogin-copy-hint">Copied</span>
                                                     )}
                                                 </div>
                                                 <a
@@ -922,12 +951,20 @@ export function App(): ReactElement | null {
                                         </div>
                                     </header>
 
-                                    <nav className="zklogin-tabs">
+                                    <nav
+                                        className="zklogin-tabs"
+                                        ref={el => { navRefs.current[account.address] = el; }}
+                                    >
                                         {DEFAULT_TABS.concat(['actions', 'subscription']).map(tab => (
                                             <button
                                                 key={tab}
+                                                data-tab={tab}
                                                 className={`zklogin-tab ${ (activeTabByAccount[account.address] ?? 'overview') === tab ? 'zklogin-tab--active' : '' }`}
-                                                onClick={() => {
+                                                onClick={event => {
+                                                    const nav = navRefs.current[account.address];
+                                                    moveTabsIndicator(nav, event.currentTarget as HTMLElement);
+                                                    const contentEl = tabContentRefs.current[account.address];
+                                                    prevContentHeightRef.current[account.address] = contentEl?.getBoundingClientRect().height;
                                                     setActiveTabByAccount(prev => ({ ...prev, [account.address]: tab }));
                                                 }}
                                             >
@@ -936,20 +973,74 @@ export function App(): ReactElement | null {
                                         ))}
                                     </nav>
 
-                                    {renderTabContent(
-                                        account,
-                                        overviews[account.address] ?? { loading: false },
-                                        activeTabByAccount[account.address] ?? 'overview',
-                                        transferForms[account.address] ?? INITIAL_TRANSFER_FORM,
-                                        uploadStates[account.address] ?? INITIAL_NFT_UPLOAD_STATE,
-                                    )}
+                                    <div
+                                        ref={el => { tabContentRefs.current[account.address] = el; }}
+                                    >
+                                        {renderTabContent(
+                                            account,
+                                            overviews[account.address] ?? { loading: false },
+                                            activeTabByAccount[account.address] ?? 'overview',
+                                            transferForms[account.address] ?? INITIAL_TRANSFER_FORM,
+                                            uploadStates[account.address] ?? INITIAL_NFT_UPLOAD_STATE,
+                                        )}
+                                    </div>
 
-                                    {renderOverviewFooter(overviews[account.address])}
+                                    {(activeTabByAccount[account.address] ?? 'overview') === 'overview'
+                                        ? renderOverviewFooter(overviews[account.address])
+                                        : null}
                                 </section>
                             ))}
                         </>
                     )
                 }
+                </div>
+
+                {/* Floating opacity control — separated from header for better UX */}
+                <div className="zklogin-overlay__opacity-floating">
+                    <button
+                        className="zklogin-icon-button zklogin-icon-button--bare"
+                        data-opacity-toggle="true"
+                        onClick={() => { setOpacityPopoverOpen(prev => !prev); }}
+                        title="Adjust widget transparency"
+                        aria-label="Adjust opacity"
+                    >
+                        <img
+                            src={chrome.runtime.getURL('img/stream-to-sui-icon.png')}
+                            alt=""
+                            aria-hidden="true"
+                            className="zklogin-icon-img"
+                        />
+                    </button>
+                    {opacityPopoverOpen && (
+                        <div ref={popoverRef} className="zklogin-overlay__opacity-popover">
+                            <div className="zklogin-overlay__opacity-row">
+                                <span>Opacity</span>
+                                <div className="zklogin-overlay__opacity-controls">
+                                    <button
+                                        className="zklogin-overlay__opacity-step"
+                                        type="button"
+                                        onClick={() => { handleOpacityStep(-0.02); }}
+                                        title="Decrease opacity"
+                                    >−</button>
+                                    <button
+                                        className="zklogin-overlay__opacity-step"
+                                        type="button"
+                                        onClick={() => { handleOpacityStep(0.02); }}
+                                        title="Increase opacity"
+                                    >+</button>
+                                </div>
+                            </div>
+                            <input
+                                className="zklogin-overlay__opacity-range"
+                                type="range"
+                                min={40}
+                                max={100}
+                                value={Math.round(overlayOpacity * 100)}
+                                onChange={handleOpacitySliderChange}
+                            />
+                            <div className="zklogin-overlay__opacity-value">{Math.round(overlayOpacity * 100)}%</div>
+                        </div>
+                    )}
                 </div>
 
             </>
@@ -1008,7 +1099,7 @@ export function App(): ReactElement | null {
                     return (
                         <div key={account.address} className="zklogin-compact-header">
                             <div className="zklogin-compact-info">
-                                <div className="zklogin-compact-title">Twitch zkLogin Wallet</div>
+                                <div className="zklogin-compact-title">UpSuider</div>
                                 <div className="zklogin-compact-sub">{shortenAddress(account.address)}</div>
                                 <div className="zklogin-compact-balance">{suiDisplay}</div>
                             </div>
@@ -1139,21 +1230,23 @@ export function App(): ReactElement | null {
                     <div className="zklogin-form">
                         <label>
                             Image file
-                            <input
-                                key={uploadState.resetCounter}
-                                type="file"
-                                accept="image/*"
-                                disabled={uploadState.uploading}
-                                onChange={event => {
-                                    handleUploadFileChange(account.address, event.target.files);
-                                }}
-                            />
-                        </label>
-                        {uploadState.file && (
-                            <div className="zklogin-muted">
-                                {uploadState.file.name} ({formatFileSize(uploadState.file.size)})
+                            <div className="zklogin-cover-upload__field" style={{ marginTop: 6 }}>
+                                <input
+                                    key={uploadState.resetCounter}
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={uploadState.uploading}
+                                    onChange={event => {
+                                        handleUploadFileChange(account.address, event.target.files);
+                                    }}
+                                    className="zklogin-file-input"
+                                />
+                                <span className="zklogin-btn" aria-hidden="true">Choose file</span>
+                                <span className="zklogin-cover-upload__hint">
+                                    {uploadState.file ? `${uploadState.file.name} (${formatFileSize(uploadState.file.size)})` : 'No file selected'}
+                                </span>
                             </div>
-                        )}
+                        </label>
                         {uploadState.error && <div className="zklogin-alert zklogin-alert--error">{uploadState.error}</div>}
                         {uploadState.successMessage && (
                             <div className="zklogin-alert zklogin-alert--success">{uploadState.successMessage}</div>

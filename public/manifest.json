@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjSUS",
-  "name": "Twitch zkLogin Wallet",
+  "name": "UpSuider",
   "description": "Chrome extension overlay that connects Twitch OAuth to a Sui zkLogin wallet on Testnet.",
   "version": "0.1.0",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Twitch zkLogin Wallet"
+    "default_title": "UpSuider"
   },
   "background": {
     "service_worker": "assets/background.js",
@@ -39,7 +39,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/*.css", "assets/*.js"],
+      "resources": ["assets/*.css", "assets/*.js", "img/*", "font/*"],
       "matches": ["https://www.twitch.tv/*", "https://*.twitch.tv/*"]
     }
   ],

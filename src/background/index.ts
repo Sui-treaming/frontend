@@ -50,7 +50,7 @@ function isLikelyNftObject(item: SuiObjectResponse): boolean {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.info('[background] Twitch zkLogin Wallet extension installed');
+    console.info('[background] UpSuider extension installed');
 });
 
 chrome.runtime.onMessage.addListener((message: MessageRequest, _sender, sendResponse) => {
@@ -614,12 +614,12 @@ async function ensureSuiForTransaction(session: AccountSession, payload: Seriali
 
     if (!IS_TESTNET) {
         const message = transferAmountMist > 0n && state.totalBalance < transferAmountMist
-            ? '보내려는 SUI 양이 계정 잔액보다 많습니다.'
-            : 'SUI 잔액이 부족하여 거래 수수료를 낼 수 없습니다.';
+            ? 'Transfer amount exceeds account balance.'
+            : 'Insufficient SUI balance to cover gas fees.';
         throw new Error(message);
     }
 
-    console.info('[background] 부족한 가스를 채우기 위해 testnet faucet을 호출합니다.');
+    console.info('[background] Requesting testnet faucet to top up gas');
     await requestFaucetAndWait(session.address);
 
     state = await collectSpendableCoins(session.address);
@@ -629,8 +629,8 @@ async function ensureSuiForTransaction(session: AccountSession, payload: Seriali
     }
 
     const failureMessage = transferAmountMist > 0n && state.totalBalance < transferAmountMist
-        ? '보내려는 SUI 양이 아직 부족합니다. 지갑에 SUI를 더 충전한 뒤 다시 시도하세요.'
-        : '테스트넷 faucet에서 아직 SUI가 도착하지 않았습니다. 잠시 기다린 뒤 다시 시도해주세요.';
+        ? 'Transfer amount still exceeds available balance. Top up SUI and retry.'
+        : 'Faucet SUI has not arrived yet. Please wait a moment and retry.';
 
     throw new Error(failureMessage);
 }
@@ -674,7 +674,7 @@ async function requestFaucetAndWait(address: string): Promise<void> {
         await requestSuiFromFaucetV2({ host, recipient: address });
     } catch (error) {
         console.warn('[background] Faucet request failed', error);
-        throw new Error('테스트넷 faucet 요청이 실패했습니다. 잠시 후 다시 시도하거나 수동으로 가스를 충전하세요.');
+        throw new Error('Testnet faucet request failed. Try again later or top up gas manually.');
     }
 
     for (const delayMs of FAUCET_RETRY_DELAYS_MS) {

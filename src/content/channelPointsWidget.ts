@@ -624,7 +624,7 @@ export function initChannelPointsWidget(): void {
 
     void refreshAccountState();
 
-    // 주기적으로 상태를 갱신하여 주소 변화를 반영
+    // Periodically refresh state to reflect address changes
     window.setInterval(() => {
         void refreshAccountState();
     }, 60_000);

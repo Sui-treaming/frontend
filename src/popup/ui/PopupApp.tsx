@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { AccountOverviewPayload } from '../../shared/messages';
 import type { AccountPublicData, ExtensionState } from '../../shared/types';
 import { sendMessage } from '../../content/api/runtime';
+import { initButtonAnimations } from '../../content/animations';
 import { makePolymediaUrl,makeSuiscanUrl,  NetworkName, shortenAddress } from '@polymedia/suitcase-core';
 
 const NETWORK: NetworkName = 'testnet';
@@ -22,6 +23,7 @@ export function PopupApp(): ReactElement {
 
     useEffect(() => {
         void bootstrap();
+        initButtonAnimations(document);
     }, []);
 
     useEffect(() => {
@@ -135,7 +137,7 @@ export function PopupApp(): ReactElement {
         <div className="popup">
             <header className="popup__header">
                 <div>
-                    <h1>Twitch zkLogin Wallet</h1>
+                <h1>UpSuider</h1>
                     <span>Sui Testnet</span>
                 </div>
                 <button

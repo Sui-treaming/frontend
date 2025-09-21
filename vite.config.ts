@@ -27,6 +27,8 @@ export default defineConfig({
             },
         },
         chunkSizeWarningLimit: 1000,
-        sourcemap: true,
+        // Source maps add noticeable weight and parse time in MV3 service workers.
+        // Disable for production builds to reduce cold-start latency.
+        sourcemap: false,
     },
 });

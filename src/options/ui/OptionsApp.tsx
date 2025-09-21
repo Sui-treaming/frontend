@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { DEFAULT_CONFIG, getOverlayEnabled, loadConfig, saveConfig, setOverlayEnabled, SESSION_KEY, getOverlayPosition, setOverlayPosition, type OverlayPosition } from '../../shared/storage';
+import { initButtonAnimations } from '../../content/animations';
 import type { ExtensionConfig } from '../../shared/types';
 
 interface StatusState {
@@ -18,6 +19,7 @@ export function OptionsApp(): ReactElement {
 
     useEffect(() => {
         void bootstrap();
+        initButtonAnimations(document);
     }, []);
 
     async function bootstrap(): Promise<void> {
@@ -62,7 +64,7 @@ export function OptionsApp(): ReactElement {
     return (
         <main className="options">
             <header className="options__header">
-                <h1>Twitch zkLogin Wallet</h1>
+                <h1>UpSuider</h1>
                 <p>Configure Twitch OAuth and Sui zkLogin integration for the Chrome extension.</p>
             </header>
 
@@ -147,7 +149,7 @@ export function OptionsApp(): ReactElement {
                             setConfig(prev => ({ ...prev, backendRegistrationUrl: event.target.value }));
                         }}
                     />
-                    <span className="options__muted">로그인 후 지갑-사용자 매핑을 전송할 API endpoint.</span>
+                    <span className="options__muted">API endpoint to receive wallet-to-user mappings after login.</span>
                 </div>
                 <div className="options__field">
                     <label htmlFor="nftUploadUrl">NFT Upload API URL</label>
@@ -161,7 +163,7 @@ export function OptionsApp(): ReactElement {
                             setConfig(prev => ({ ...prev, nftUploadUrl: event.target.value }));
                         }}
                     />
-                    <span className="options__muted">스트리머가 업로드한 NFT 이미지를 수신할 POST endpoint.</span>
+                    <span className="options__muted">POST endpoint that receives streamer-uploaded NFT images.</span>
                 </div>
                 <div className="options__field">
                     <label htmlFor="subscriptionPackageId">Subscription package ID</label>
@@ -233,7 +235,7 @@ export function OptionsApp(): ReactElement {
                         onChange={e => setPosition(prev => ({ ...prev, offsetY: Number(e.target.value) }))}
                     />
                 </div>
-                <p className="options__muted">변경 후 저장하면 Twitch 페이지의 오버레이 위치가 업데이트됩니다.</p>
+                <p className="options__muted">After saving, the overlay position on Twitch will update.</p>
             </section>
 
             <section className="options__card">

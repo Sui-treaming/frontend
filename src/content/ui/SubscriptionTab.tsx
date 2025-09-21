@@ -575,9 +575,11 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                                     accept="image/*"
                                     disabled={nftUploadState.uploading}
                                     onChange={event => onNftFileChange(event.target.files)}
+                                    className="zklogin-file-input"
                                 />
+                                <span className="zklogin-btn" aria-hidden="true">Choose file</span>
                                 <span className="zklogin-cover-upload__hint">
-                                    {nftUploadState.file ? nftUploadState.file.name : '선택된 파일 없음'}
+                                    {nftUploadState.file ? nftUploadState.file.name : 'No file selected'}
                                 </span>
                             </label>
                             <button
@@ -635,7 +637,18 @@ export function SubscriptionTab({ account, nftUploadState, onNftFileChange, onNf
                             <div className="zklogin-form zklogin-form--secret">
                                 <label className="zklogin-secret-upload">
                                     Secret image for subscribers
-                                    <input type="file" accept="image/*" onChange={event => handleSecretFileChange(event.target.files)} />
+                                    <div className="zklogin-cover-upload__field" style={{ marginTop: 6 }}>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={event => handleSecretFileChange(event.target.files)}
+                                            className="zklogin-file-input"
+                                        />
+                                        <span className="zklogin-btn" aria-hidden="true">Choose file</span>
+                                        <span className="zklogin-cover-upload__hint">
+                                            {secretState.file ? secretState.file.name : 'No file selected'}
+                                        </span>
+                                    </div>
                                 </label>
                                 <label>
                                     Walrus service

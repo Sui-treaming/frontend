@@ -54,9 +54,9 @@ function ensureContainer(): HTMLDivElement {
     element.innerHTML = '<div class="zklogin-global-widget__title">Stream-to-Sui (loading…)</div>';
     document.body.appendChild(element);
     container = element;
-    // 초기 위치 적용
+    // Apply initial position
     applyPosition(element).catch(() => void 0);
-    // 드래그 핸들러 등록
+    // Bind drag handlers
     bindDragHandlers(element);
     return element;
 }
