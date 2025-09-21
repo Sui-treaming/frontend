@@ -128,9 +128,9 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 **Streamer flow**  
 ![package_id](public/img/package_id.png) 
 1. Ensure the desired `subscriptionPackageId` is configured in Options.
-2. In the Subscription tab (Streamer role) fill in price (Mist), TTL (minutes), and service name, then **Create service**.
-![image](public/img/image.png) 
-![publish](public/img/publish.png) 
+2. In the Subscription tab (Streamer role) fill in price (Mist), TTL (minutes), and service name, then **Create service**.  
+![image](public/img/image.png)  
+![publish](public/img/publish.png)  
 3. Optionally choose a cover image, encrypt it with Mysten Seal, upload the encrypted blob to a Walrus publisher, and **Publish** it on-chain.
 
 **Follower flow**  
