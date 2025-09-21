@@ -81,6 +81,10 @@ UpSuider is a Chrome Manifest V3 extension that links Twitch OAuth with Sui zkLo
 - For local testing set `saltServiceUrl` to `/dummy-salt-service.json`; the bundled mock responds with a fixed salt.
 
 ## Demo Walkthrough
+
+### Demo Video
+https://drive.google.com/file/d/1L2u_sClDRtNxg5ikY_668l1JAPQwAk6-/view?usp=sharing
+
 ### 1. Load the Extension
 <p align="center"><img src="public/img/setting1.png" alt="setting1" width="350" /></p>
 1. Run `pnpm build` to populate `dist/`.
